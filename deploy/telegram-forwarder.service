@@ -1,0 +1,17 @@
+[Unit]
+Description=Telegram Message Forwarder Bot
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/telegram-forwarder
+EnvironmentFile=/opt/telegram-forwarder/.env
+ExecStart=/opt/telegram-forwarder/venv/bin/python main.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
