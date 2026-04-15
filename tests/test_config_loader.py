@@ -85,3 +85,25 @@ def test_load_config_global_masking_users(tmp_path):
     config = load_config(str(config_file))
     assert config.masking.users[111]["alias"] == "Alpha"
     assert config.masking.users[222]["alias"] is None
+
+
+from bot.config.writer import save_config, save_and_reload
+
+
+def test_save_config_persists_changes(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(MINIMAL_CONFIG))
+    config = load_config(str(config_file))
+    config._raw["admins"].append(999999999)
+    save_config(config, str(config_file))
+    reloaded = load_config(str(config_file))
+    assert 999999999 in reloaded.admins
+
+
+def test_save_and_reload_updates_in_place(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(MINIMAL_CONFIG))
+    config = load_config(str(config_file))
+    config._raw["admins"].append(777777777)
+    save_and_reload(config, str(config_file))
+    assert 777777777 in config.admins
