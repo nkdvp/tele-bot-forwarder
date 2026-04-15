@@ -1,0 +1,7 @@
+venv/
+__pycache__/
+*.pyc
+.env
+data/masks.json
+*.egg-info/
+.pytest_cache/
