@@ -153,7 +153,7 @@ async def cmd_mask(update: Update, context: ContextTypes.DEFAULT_TYPE, config: C
     alias_value = None if alias.lower() == "anon" else alias
 
     if direction == "global":
-        config._raw.setdefault("masking", {}).setdefault("users", {})[user_id] = {
+        config._raw.setdefault("masking", {}).setdefault("users", {})[str(user_id)] = {
             "alias": alias_value
         }
     else:
@@ -161,7 +161,7 @@ async def cmd_mask(update: Update, context: ContextTypes.DEFAULT_TYPE, config: C
         if not raw:
             await update.message.reply_text(f"Pair '{pair_name}' not found.")
             return
-        raw.setdefault("masking", {}).setdefault(direction, {})[user_id] = {
+        raw.setdefault("masking", {}).setdefault(direction, {})[str(user_id)] = {
             "alias": alias_value
         }
 
@@ -192,13 +192,13 @@ async def cmd_unmask(update: Update, context: ContextTypes.DEFAULT_TYPE, config:
 
     if direction == "global":
         users = config._raw.get("masking", {}).get("users", {})
-        users.pop(user_id, None)
+        users.pop(str(user_id), None)
     else:
         raw = _find_pair_raw(config, pair_name)
         if not raw:
             await update.message.reply_text(f"Pair '{pair_name}' not found.")
             return
-        raw.get("masking", {}).get(direction, {}).pop(user_id, None)
+        raw.get("masking", {}).get(direction, {}).pop(str(user_id), None)
 
     save_and_reload(config, CONFIG_PATH)
     await update.message.reply_text(f"Masking removed for user {user_id}.")
