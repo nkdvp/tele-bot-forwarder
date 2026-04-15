@@ -7,12 +7,14 @@
 
 ## Overview
 
-Four targeted improvements to the existing v1 bot:
+Six targeted improvements to the existing v1 bot:
 
 1. **Rate limiting** — buffer outgoing relay messages to stay within Telegram's flood limits; nothing is dropped during bursts.
 2. **Health endpoint** — HTTP `GET /health` so external uptime monitors (e.g. UptimeRobot) can detect when the bot is down.
-3. **Monitoring alerts** — Telegram messages sent to an admin chat on startup and graceful shutdown; crash detection delegated to the external monitor.
+3. **Monitoring alerts** — Telegram messages sent to an admin chat (including direct DMs) on startup and graceful shutdown; crash detection delegated to the external monitor.
 4. **Message recovery** — replay Telegram-buffered messages on restart, skipping anything older than a configurable age window (default 15 min).
+5. **Runtime config commands** — `/set` commands to change `recovery_window_minutes` and `alert_chat_id` without restart.
+6. **Runtime admin management** — `/admin add` and `/admin remove` commands with lockout protection.
 
 Webhook mode and additional forwarding features (edit propagation, reply threading, etc.) are explicitly out of scope for v2. Polling remains the transport.
 
@@ -23,10 +25,12 @@ Webhook mode and additional forwarding features (edit propagation, reply threadi
 **Included:**
 - `AIORateLimiter` wired into the PTB Application builder
 - `aiohttp`-based health server running as a background asyncio task
-- Startup and graceful-shutdown Telegram alerts via `Application.post_init` / `post_shutdown`
+- Startup and graceful-shutdown Telegram alerts via `Application.post_init` / `post_shutdown` (supports personal DM as `alert_chat_id`)
 - Message age filter in `handle_message` — stale buffered messages are silently skipped
 - New `monitoring` config block in `config.yaml`
 - `HEALTH_PORT` env var (default `8080`)
+- `/set recovery_window <minutes>` and `/set alert_chat <chat_id>` runtime commands
+- `/admin add <user_id>` and `/admin remove <user_id>` runtime commands with lockout protection
 - Updated deployment guide covering firewall rule and UptimeRobot setup
 
 **Excluded:**
@@ -217,13 +221,43 @@ HEALTH_PORT=8080
 
 ---
 
+## Runtime Commands (new in v2)
+
+All commands are restricted to user IDs in `config.admins`. Unauthorised users receive no response (same as existing commands).
+
+### `/set` — change runtime config values
+
+| Command | Effect |
+|---|---|
+| `/set recovery_window <minutes>` | Update `recovery_window_minutes`. `0` = replay all. |
+| `/set alert_chat <chat_id>` | Update `monitoring.alert_chat_id`. Use your personal user ID for DMs. |
+
+Both changes persist to `config.yaml` immediately and take effect without restart. Bot replies with a confirmation message.
+
+### `/admin` — manage the admin list
+
+| Command | Effect |
+|---|---|
+| `/admin add <user_id>` | Add `user_id` to the admins list. Takes effect immediately. |
+| `/admin remove <user_id>` | Remove `user_id` from the admins list. Guarded (see below). |
+
+**Guards on `/admin remove`:**
+
+- **Last admin protection** — refuses if removing this user would leave the admins list empty. Replies: `"Cannot remove the last admin."`
+- **Self-remove protection** — refuses if `user_id` matches the caller's own ID. Replies: `"Cannot remove yourself."`
+
+Both changes persist to `config.yaml` immediately.
+
+---
+
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `main.py` | Add `AIORateLimiter`; add `post_init`/`post_shutdown` hooks; remove `drop_pending_updates=True` |
+| `main.py` | Add `AIORateLimiter`; add `post_init`/`post_shutdown` hooks; remove `drop_pending_updates=True`; register `/set` and `/admin` handlers |
 | `bot/config/loader.py` | Add `MonitoringConfig` dataclass; add `recovery_window_minutes` field to `Config` |
 | `bot/handlers/message.py` | Add age filter at top of `handle_message` |
+| `bot/handlers/commands.py` | Add `cmd_set` and `cmd_admin` handlers |
 | `bot/health/__init__.py` | New — empty package marker |
 | `bot/health/server.py` | New — aiohttp health server |
 | `config.yaml` | Add `recovery_window_minutes` and `monitoring` block |
@@ -264,6 +298,11 @@ Or via the DigitalOcean Cloud Firewall dashboard: add an inbound rule for TCP po
 | `RetryAfter` flood error on relay | `AIORateLimiter` sleeps and retries automatically |
 | Bot restarted within recovery window | Messages in window are replayed and forwarded normally |
 | Bot down longer than recovery window | Only last 15 min of buffered messages are forwarded on restart |
+| `/set recovery_window` with non-integer value | Reply: `"Invalid value. Usage: /set recovery_window <minutes>"` |
+| `/set alert_chat` with non-integer value | Reply: `"Invalid value. Usage: /set alert_chat <chat_id>"` |
+| `/admin remove` on last admin | Reply: `"Cannot remove the last admin."` |
+| `/admin remove` self-remove attempt | Reply: `"Cannot remove yourself."` |
+| `/admin add` with non-integer user_id | Reply: `"Invalid user ID."` |
 
 ---
 
@@ -273,3 +312,6 @@ Or via the DigitalOcean Cloud Firewall dashboard: add an inbound rule for TCP po
 - **Health server:** `GET http://localhost:8080/health` returns 200 and valid JSON in an integration test.
 - **Age filter:** Unit test with a message whose `date` is set to `now - 20min` — should be skipped when `recovery_window_minutes=15`. Message at `now - 10min` should pass.
 - **Monitoring alerts:** Mock `bot.send_message` and verify it is called with the correct chat ID and text in `post_init` and `post_shutdown`.
+- **`/set` commands:** Unit test valid and invalid inputs; verify `config.yaml` is updated on disk after the command.
+- **`/admin remove` guards:** Unit test last-admin case (single-element list), self-remove case, and valid removal.
+- **`/admin add`:** Unit test duplicate add (idempotent — no error, no duplicate entry) and valid add.
