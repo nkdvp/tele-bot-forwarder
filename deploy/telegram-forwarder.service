@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=ubuntu
+User=root
 WorkingDirectory=/opt/telegram-forwarder
 EnvironmentFile=/opt/telegram-forwarder/.env
 ExecStart=/opt/telegram-forwarder/venv/bin/python main.py
