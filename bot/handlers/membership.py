@@ -20,11 +20,16 @@ async def handle_bot_added(
     if new_status not in ("member", "administrator"):
         return
 
+    old_status = chat_member.old_chat_member.status
+    if old_status in ("member", "administrator"):
+        return  # already in the group, ignore re-promotions
+
     chat = chat_member.chat
     if chat.type not in ("group", "supergroup"):
         return
 
     if not config.admins:
+        logger.warning("Bot joined a group but no admins are configured; skipping join notification")
         return
 
     chat_id = chat.id
