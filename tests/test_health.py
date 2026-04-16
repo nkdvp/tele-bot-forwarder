@@ -9,7 +9,8 @@ async def test_health_handler_returns_ok():
     request = MagicMock()
     response = await health_handler(request)
     assert response.status == 200
-    body = json.loads(response.body)
+    body = json.loads(response.text)
     assert body["status"] == "ok"
     assert isinstance(body["uptime_seconds"], int)
     assert body["uptime_seconds"] >= 0
+    assert response.content_type == "application/json"
