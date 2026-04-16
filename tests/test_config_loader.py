@@ -107,3 +107,34 @@ def test_save_and_reload_updates_in_place(tmp_path):
     config._raw["admins"].append(777777777)
     save_and_reload(config, str(config_file))
     assert 777777777 in config.admins
+
+
+def test_load_config_recovery_window_default(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(MINIMAL_CONFIG))
+    config = load_config(str(config_file))
+    assert config.recovery_window_minutes == 15
+
+
+def test_load_config_recovery_window_explicit(tmp_path):
+    data = {**MINIMAL_CONFIG, "recovery_window_minutes": 30}
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(data))
+    config = load_config(str(config_file))
+    assert config.recovery_window_minutes == 30
+
+
+def test_load_config_monitoring_absent(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(MINIMAL_CONFIG))
+    config = load_config(str(config_file))
+    assert config.monitoring is None
+
+
+def test_load_config_monitoring_present(tmp_path):
+    data = {**MINIMAL_CONFIG, "monitoring": {"alert_chat_id": 987654321}}
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(data))
+    config = load_config(str(config_file))
+    assert config.monitoring is not None
+    assert config.monitoring.alert_chat_id == 987654321

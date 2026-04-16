@@ -13,7 +13,7 @@ class FilterConfig:
 
 @dataclass
 class PairMaskingConfig:
-    a_to_b: dict[int, dict]  # user_id -> {"alias": str | None}
+    a_to_b: dict[int, dict]
     b_to_a: dict[int, dict]
 
 
@@ -30,7 +30,12 @@ class PairConfig:
 
 @dataclass
 class GlobalMaskingConfig:
-    users: dict[int, dict]  # user_id -> {"alias": str | None}
+    users: dict[int, dict]
+
+
+@dataclass
+class MonitoringConfig:
+    alert_chat_id: int
 
 
 @dataclass
@@ -38,6 +43,8 @@ class Config:
     admins: list[int]
     masking: GlobalMaskingConfig
     pairs: list[PairConfig]
+    recovery_window_minutes: int = 15
+    monitoring: MonitoringConfig | None = None
     _raw: dict = field(default_factory=dict, repr=False)
 
 
@@ -79,9 +86,16 @@ def load_config(path: str = "config.yaml") -> Config:
         users={int(k): v for k, v in (masking_raw.get("users") or {}).items()}
     )
 
+    monitoring = None
+    monitoring_raw = raw.get("monitoring")
+    if monitoring_raw and monitoring_raw.get("alert_chat_id"):
+        monitoring = MonitoringConfig(alert_chat_id=int(monitoring_raw["alert_chat_id"]))
+
     return Config(
         admins=[int(a) for a in raw["admins"]],
         masking=global_masking,
         pairs=[_parse_pair(p) for p in raw["pairs"]],
+        recovery_window_minutes=int(raw.get("recovery_window_minutes", 15)),
+        monitoring=monitoring,
         _raw=raw,
     )
