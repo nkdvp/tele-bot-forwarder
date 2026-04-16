@@ -4,7 +4,7 @@ import logging
 import os
 from functools import partial
 from dotenv import load_dotenv
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import (
     Application,
     MessageHandler,
@@ -50,6 +50,18 @@ def main() -> None:
     async def post_init(app: Application) -> None:
         task = asyncio.create_task(run_health_server(port=health_port))
         app.bot_data["_health_task"] = task
+        await app.bot.set_my_commands([
+            BotCommand("status", "Show all pairs and their state"),
+            BotCommand("enable", "Enable a pair: /enable <pair>"),
+            BotCommand("disable", "Disable a pair: /disable <pair>"),
+            BotCommand("stats", "Message counts: /stats [pair]"),
+            BotCommand("pair", "Manage pairs: /pair add|remove ..."),
+            BotCommand("set", "Change settings: /set recovery_window|alert_chat <value>"),
+            BotCommand("admin", "Manage admins: /admin add|remove <user_id>"),
+            BotCommand("filter", "Edit filters: /filter <pair> block|allow|remove type|keyword <value>"),
+            BotCommand("mask", "Set sender alias: /mask <pair> a_to_b|b_to_a|global <user_id> <alias|anon>"),
+            BotCommand("unmask", "Remove alias: /unmask <pair> a_to_b|b_to_a|global <user_id>"),
+        ])
         if config.monitoring and config.monitoring.alert_chat_id:
             try:
                 await app.bot.send_message(

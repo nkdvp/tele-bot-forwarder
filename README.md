@@ -1,6 +1,6 @@
 # Telegram Message Forwarder Bot
 
-A Telegram bot that monitors group pairs and forwards messages bidirectionally with configurable filters and sender masking.
+A Telegram bot that forwards messages between group pairs with configurable filters, sender masking, and runtime admin commands.
 
 ## Features
 
@@ -10,15 +10,21 @@ A Telegram bot that monitors group pairs and forwards messages bidirectionally w
 - Message type filter
 - Sender masking — fixed alias or anonymous ID (`User #1`, `User #2`, ...)
 - Per-pair directional masking overrides
-- Admin commands to manage pairs, filters, and masks at runtime
 - Loop prevention (bot's own forwarded messages are not re-forwarded)
+- **v2:** Rate limiting — queues API calls, never drops messages
+- **v2:** Health endpoint at `GET /health` (pingable by UptimeRobot)
+- **v2:** Startup/shutdown alerts via Telegram DM
+- **v2:** Message recovery — replays buffered messages on restart, skips anything older than N minutes
+- **v2:** Runtime `/set`, `/admin`, `/pair` commands — change config without editing YAML
+- **v2:** Auto group ID discovery — bot DMs you the chat ID when added to a group
+- **v2:** `/stats` — forwarded message counts per pair (today / this week)
 - Runtime config changes persist to `config.yaml` without restart
 
 ## Requirements
 
 - Python 3.11+
 - A Telegram bot token from [@BotFather](https://t.me/BotFather)
-- Privacy mode **disabled** for the bot (BotFather → `/setprivacy` → Disable)
+- Privacy mode **disabled** (BotFather → `/setprivacy` → Disable)
 - Bot added as a member to all configured groups
 
 ## Setup
@@ -29,14 +35,22 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env and set BOT_TOKEN=your_token_here
+# Edit .env — set BOT_TOKEN and optionally HEALTH_PORT
 ```
 
-Edit `config.yaml` with your group chat IDs and admin user ID:
+Edit `config.yaml`:
 
 ```yaml
 admins:
   - 123456789  # Your Telegram user ID
+
+recovery_window_minutes: 15  # skip messages older than this on restart (0 = replay all)
+
+monitoring:                  # remove block to disable alerts
+  alert_chat_id: 123456789   # your user ID for DMs, or a group chat ID
+
+masking:
+  users: {}
 
 pairs:
   - name: "my-pair"
@@ -55,7 +69,7 @@ pairs:
       b_to_a: {}
 ```
 
-> **Note:** Supergroup chat IDs start with `-100`. Use `getUpdates` or the debug log to find the real ID.
+> **Tip:** Supergroup chat IDs start with `-100`. Add the bot to the group and it will DM you the chat ID automatically (v2 auto-discovery).
 
 ## Run
 
@@ -64,76 +78,115 @@ source venv/bin/activate
 python main.py
 ```
 
+On first start the bot registers its command menu with Telegram — type `/` in any chat with the bot to see all available commands.
+
 ## Admin Commands
 
-All commands are restricted to user IDs listed under `admins` in `config.yaml`.
+All commands are restricted to user IDs in `admins`. They work in any private or group chat the bot is a member of.
+
+### Pair management
 
 | Command | Description |
 |---|---|
 | `/status` | Show all pairs and their current state |
 | `/enable <pair>` | Enable forwarding for a pair |
 | `/disable <pair>` | Disable forwarding for a pair |
-| `/filter <pair> <block\|allow\|remove> <type\|keyword> <value>` | Modify type or keyword filters |
-| `/mask <pair> <a_to_b\|b_to_a\|global> <user_id> <alias\|anon>` | Set a display name or anonymise a user |
-| `/unmask <pair> <a_to_b\|b_to_a\|global> <user_id>` | Remove masking for a user |
+| `/pair add <name> <group_a_id> <group_b_id> [true\|false]` | Add a new pair (bidirectional by default) |
+| `/pair remove <name>` | Remove a pair |
 
-### Filter examples
+### Stats
+
+| Command | Description |
+|---|---|
+| `/stats` | Message counts for all pairs (today / this week) |
+| `/stats <pair>` | Counts for a specific pair |
+
+### Settings
+
+| Command | Description |
+|---|---|
+| `/set recovery_window <minutes>` | Set the message age filter (0 = disabled) |
+| `/set alert_chat <chat_id>` | Set where startup/shutdown alerts are sent |
+
+### Admin management
+
+| Command | Description |
+|---|---|
+| `/admin add <user_id>` | Add a new admin |
+| `/admin remove <user_id>` | Remove an admin (cannot remove yourself or the last admin) |
+
+### Filters & masking
+
+| Command | Description |
+|---|---|
+| `/filter <pair> block type <type>` | Block a message type |
+| `/filter <pair> allow type <type>` | Allow a message type |
+| `/filter <pair> block keyword <word>` | Block messages containing a keyword |
+| `/filter <pair> allow keyword <word>` | Allow only messages containing a keyword |
+| `/filter <pair> remove keyword <word>` | Remove a keyword rule |
+| `/mask <pair> <a_to_b\|b_to_a\|global> <user_id> <alias\|anon>` | Set display name or anonymise |
+| `/unmask <pair> <a_to_b\|b_to_a\|global> <user_id>` | Remove masking |
+
+### Examples
 
 ```
-/filter my-pair block type sticker
-/filter my-pair allow keyword urgent
-/filter my-pair remove keyword urgent
-```
+# Add a new pair discovered via auto-discovery DM
+/pair add support -1009111111111 -1009222222222
 
-### Mask examples
+# Block stickers on a pair
+/filter support block type sticker
 
-```
-/mask my-pair a_to_b 123456789 Alice        # fixed alias
-/mask my-pair global 123456789 anon         # anonymous (User #N)
-/unmask my-pair global 123456789
+# Give a user a fixed alias
+/mask support a_to_b 123456789 Alice
+
+# Check forwarding counts
+/stats support
+
+# Change the message recovery window
+/set recovery_window 30
 ```
 
 ## Deployment (systemd / DigitalOcean)
 
-Copy files to your server:
+See [`deploy/DEPLOY.md`](deploy/DEPLOY.md) for full instructions including health monitoring setup with UptimeRobot.
+
+Quick redeploy:
 
 ```bash
-scp -r . ubuntu@your-server:/opt/telegram-forwarder
-```
-
-Install the service:
-
-```bash
-sudo cp deploy/telegram-forwarder.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable telegram-forwarder
-sudo systemctl start telegram-forwarder
-sudo journalctl -u telegram-forwarder -f
+rsync -av --exclude='venv' --exclude='__pycache__' --exclude='.git' --exclude='.env' --exclude='data/' ./ root@YOUR_SERVER_IP:/opt/telegram-forwarder/
+ssh root@YOUR_SERVER_IP "systemctl restart telegram-forwarder"
 ```
 
 ## Project Structure
 
 ```
-main.py                      # Entry point
-config.yaml                  # Pair and filter configuration
+main.py                       # Entry point — wires all handlers, rate limiter, health server
+config.yaml                   # Pair and filter configuration
 bot/
   config/
-    loader.py                # Load and validate config.yaml
-    writer.py                # Persist runtime changes back to disk
+    loader.py                 # Load and validate config.yaml
+    writer.py                 # Persist runtime changes back to disk
   filters/
-    type_filter.py           # Allow/block by message type
-    keyword_filter.py        # Allow/block by keyword
+    type_filter.py            # Allow/block by message type
+    keyword_filter.py         # Allow/block by keyword
   masking/
-    engine.py                # Resolve display names and anonymous IDs
+    engine.py                 # Resolve display names and anonymous IDs
   forwarder/
-    relay.py                 # Send messages to destination chat
+    relay.py                  # Send messages to destination chat
   handlers/
-    message.py               # Main pipeline handler
-    commands.py              # Admin command handlers
+    message.py                # Main pipeline: age filter → pair lookup → relay → stats
+    commands.py               # Admin command handlers
+    membership.py             # Auto group ID discovery on bot join
+  health/
+    server.py                 # aiohttp GET /health endpoint
+  stats/
+    counter.py                # Per-pair forwarded message counts (data/stats.json)
 data/
-  masks.json                 # Auto-generated anonymous ID assignments
+  masks.json                  # Auto-generated anonymous ID assignments
+  stats.json                  # Message count persistence
 deploy/
-  telegram-forwarder.service # systemd unit file
+  telegram-forwarder.service  # systemd unit file
+  DEPLOY.md                   # Deployment and monitoring guide
 ```
 
 ## Tests
