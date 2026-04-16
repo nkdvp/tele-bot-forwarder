@@ -73,5 +73,8 @@ class StatsCounter:
                 json.dump(self._data, f, indent=2)
             os.replace(tmp_path, self._path)
         except Exception:
-            os.unlink(tmp_path)
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
             raise
