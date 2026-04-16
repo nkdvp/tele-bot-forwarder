@@ -7,7 +7,7 @@
 
 ## Overview
 
-Six targeted improvements to the existing v1 bot:
+Ten targeted improvements to the existing v1 bot:
 
 1. **Rate limiting** — buffer outgoing relay messages to stay within Telegram's flood limits; nothing is dropped during bursts.
 2. **Health endpoint** — HTTP `GET /health` so external uptime monitors (e.g. UptimeRobot) can detect when the bot is down.
@@ -15,8 +15,12 @@ Six targeted improvements to the existing v1 bot:
 4. **Message recovery** — replay Telegram-buffered messages on restart, skipping anything older than a configurable age window (default 15 min).
 5. **Runtime config commands** — `/set` commands to change `recovery_window_minutes` and `alert_chat_id` without restart.
 6. **Runtime admin management** — `/admin add` and `/admin remove` commands with lockout protection.
+7. **Pair management commands** — `/pair add` and `/pair remove` to manage forwarding pairs at runtime without editing `config.yaml`.
+8. **Auto group ID discovery** — when the bot is added to a new group, it DMs the admin with the group name and chat ID, making pair setup frictionless.
+9. **Message stats** — `/stats [pair-name]` shows forwarded message counts per pair for today and this week.
+10. **Config writer patch** — `save_and_reload` extended to sync all new top-level config fields so runtime mutations stay consistent.
 
-Webhook mode and additional forwarding features (edit propagation, reply threading, etc.) are explicitly out of scope for v2. Polling remains the transport.
+Webhook mode, edit/delete propagation, and reply threading are explicitly out of scope for v2. Polling remains the transport.
 
 ---
 
@@ -31,6 +35,10 @@ Webhook mode and additional forwarding features (edit propagation, reply threadi
 - `HEALTH_PORT` env var (default `8080`)
 - `/set recovery_window <minutes>` and `/set alert_chat <chat_id>` runtime commands
 - `/admin add <user_id>` and `/admin remove <user_id>` runtime commands with lockout protection
+- `/pair add <name> <group_a_id> <group_b_id> [bidirectional=true]` and `/pair remove <name>` runtime commands
+- Auto group ID discovery via `ChatMemberUpdated` handler — DMs the first admin when bot is added to a group
+- `/stats [pair-name]` — forwarded message counts (today / this week) backed by `data/stats.json`
+- `save_and_reload` patched to sync all new top-level `Config` fields
 - Updated deployment guide covering firewall rule and UptimeRobot setup
 
 **Excluded:**
@@ -44,7 +52,7 @@ Webhook mode and additional forwarding features (edit propagation, reply threadi
 
 ## Architecture
 
-No structural change to the bot's core pipeline. All changes are additive or single-line modifications to existing files.
+No structural change to the bot's core pipeline. All changes are additive or targeted modifications to existing files.
 
 ```
 main.py
@@ -52,14 +60,25 @@ main.py
   ├── post_init hook
   │     ├── asyncio.create_task(run_health_server())
   │     └── bot.send_message(alert_chat_id, "Bot started")
-  └── post_shutdown hook
-        └── bot.send_message(alert_chat_id, "Bot stopping")
+  ├── post_shutdown hook
+  │     └── bot.send_message(alert_chat_id, "Bot stopping")
+  └── register new handlers: /set, /admin, /pair, /stats, ChatMemberUpdated
 
 bot/health/server.py  (new)
   └── GET /health → {"status": "ok", "uptime_seconds": N}
 
+bot/stats/counter.py  (new)
+  └── increment(pair_name) / query(pair_name) → backed by data/stats.json
+
 bot/handlers/message.py
-  └── age check at top of handle_message — return if message older than recovery_window_minutes
+  └── age check at top of handle_message
+  └── increment stats counter on successful relay
+
+bot/handlers/membership.py  (new)
+  └── handle_bot_added(update, context) — DM first admin with group name + chat ID
+
+bot/config/writer.py
+  └── save_and_reload patched to sync recovery_window_minutes and monitoring
 
 config.yaml
   ├── recovery_window_minutes: 15
@@ -68,6 +87,9 @@ config.yaml
 
 .env / .env.example
   └── HEALTH_PORT=8080
+
+data/stats.json  (auto-created)
+  └── { "pair-name": {"today": N, "week": N, "date": "YYYY-MM-DD"} }
 ```
 
 ---
@@ -179,6 +201,116 @@ Messages within the window are forwarded normally. On a short outage (<15 min) a
 
 ---
 
+### 5. Config Writer Patch
+
+**File:** `bot/config/writer.py`
+
+`save_and_reload` currently syncs only `admins`, `masking`, and `pairs` after re-parsing. Two new lines added to sync the v2 top-level fields:
+
+```python
+config.recovery_window_minutes = fresh.recovery_window_minutes
+config.monitoring = fresh.monitoring
+```
+
+This ensures `/set` and other runtime mutations to these fields are reflected in the live `Config` object without restart.
+
+---
+
+### 6. Auto Group ID Discovery
+
+**File:** `bot/handlers/membership.py` (new)
+
+When the bot is added to any group or supergroup, it sends a DM to the first admin in `config.admins` with the group's name and numeric chat ID:
+
+```
+Bot added to group:
+Name: Customer Support Alpha
+Chat ID: -1001234567890
+
+Use: /pair add <name> -1001234567890 <other_group_id>
+```
+
+**Implementation:** `ChatMemberUpdated` handler filtered to `MY_CHAT_MEMBER` updates where `new_chat_member.status` is `member` or `administrator`.
+
+The message includes a ready-to-use `/pair add` snippet so the admin can copy-paste directly.
+
+---
+
+### 7. Pair Management Commands
+
+**File:** `bot/handlers/commands.py`
+
+#### `/pair add <name> <group_a_id> <group_b_id> [true|false]`
+
+Creates a new forwarding pair with sensible defaults:
+
+```yaml
+name: <name>
+group_a_chat_id: <group_a_id>
+group_b_chat_id: <group_b_id>
+bidirectional: true   # default; pass "false" to override
+enabled: true
+filters:
+  types:
+    allow: [text, photo, video, sticker, document, voice, animation]
+  keywords:
+    block: []
+    allow: []
+masking:
+  a_to_b: {}
+  b_to_a: {}
+```
+
+Appends the raw dict to `config._raw["pairs"]`, calls `save_and_reload()`. The re-parse syncs `config.pairs` automatically.
+
+Guards:
+- Reject if `<name>` already exists among `config.pairs`
+- Reject if either chat ID is not a valid integer
+
+#### `/pair remove <name>`
+
+Removes the pair from `config._raw["pairs"]` by name and calls `save_and_reload()`.
+
+Guards:
+- Reply `"Pair '<name>' not found."` if name does not match any pair
+
+---
+
+### 8. Message Stats
+
+**File:** `bot/stats/counter.py` (new)
+
+Backed by `data/stats.json`. Structure:
+
+```json
+{
+  "customer-internal": {
+    "date": "2026-04-16",
+    "today": 42,
+    "week": 317
+  }
+}
+```
+
+- `increment(pair_name)` — called in `handle_message` after a successful relay. If `date` has rolled over to a new day, resets `today` to 0. Increments both `today` and `week`. Resets `week` to 0 when a new ISO week starts.
+- File is auto-created on first write if missing.
+- Writes are synchronous (stats.json is tiny; no async needed).
+
+**`/stats [pair-name]` command** (in `bot/handlers/commands.py`):
+
+- Without argument: shows all pairs.
+- With `pair-name`: shows that pair only.
+
+Example output:
+```
+*Stats*
+
+customer-internal: 42 today, 317 this week
+support-escalations: 8 today, 61 this week
+```
+
+---
+
 ## Configuration
 
 ### Updated `config.yaml`
@@ -248,18 +380,40 @@ Both changes persist to `config.yaml` immediately and take effect without restar
 
 Both changes persist to `config.yaml` immediately.
 
+### `/pair` — manage forwarding pairs
+
+| Command | Effect |
+|---|---|
+| `/pair add <name> <group_a_id> <group_b_id> [true\|false]` | Add a new pair with defaults. Optional 4th arg sets `bidirectional` (default `true`). |
+| `/pair remove <name>` | Remove a pair permanently. |
+
+Both changes persist to `config.yaml` immediately and take effect without restart.
+
+### `/stats` — message counts
+
+| Command | Effect |
+|---|---|
+| `/stats` | Show forwarded message counts for all pairs (today / this week). |
+| `/stats <pair-name>` | Show counts for one pair only. |
+
+Stats are read from `data/stats.json`. Read-only command, no config change.
+
 ---
 
 ## Files Changed
 
 | File | Change |
 |---|---|
-| `main.py` | Add `AIORateLimiter`; add `post_init`/`post_shutdown` hooks; remove `drop_pending_updates=True`; register `/set` and `/admin` handlers |
-| `bot/config/loader.py` | Add `MonitoringConfig` dataclass; add `recovery_window_minutes` field to `Config` |
-| `bot/handlers/message.py` | Add age filter at top of `handle_message` |
-| `bot/handlers/commands.py` | Add `cmd_set` and `cmd_admin` handlers |
+| `main.py` | Add `AIORateLimiter`; add `post_init`/`post_shutdown` hooks; remove `drop_pending_updates=True`; register `/set`, `/admin`, `/pair`, `/stats`, `ChatMemberUpdated` handlers |
+| `bot/config/loader.py` | Add `MonitoringConfig` dataclass; add `recovery_window_minutes` and `monitoring` fields to `Config` |
+| `bot/config/writer.py` | Patch `save_and_reload` to sync `recovery_window_minutes` and `monitoring` |
+| `bot/handlers/message.py` | Add age filter; call `stats.increment` after successful relay |
+| `bot/handlers/commands.py` | Add `cmd_set`, `cmd_admin`, `cmd_pair`, `cmd_stats` handlers |
+| `bot/handlers/membership.py` | New — `handle_bot_added` for auto group ID discovery |
 | `bot/health/__init__.py` | New — empty package marker |
 | `bot/health/server.py` | New — aiohttp health server |
+| `bot/stats/__init__.py` | New — empty package marker |
+| `bot/stats/counter.py` | New — `increment` / `query` backed by `data/stats.json` |
 | `config.yaml` | Add `recovery_window_minutes` and `monitoring` block |
 | `.env.example` | Add `HEALTH_PORT=8080` |
 | `requirements.txt` | Add `aiohttp` (pinned) |
@@ -303,6 +457,12 @@ Or via the DigitalOcean Cloud Firewall dashboard: add an inbound rule for TCP po
 | `/admin remove` on last admin | Reply: `"Cannot remove the last admin."` |
 | `/admin remove` self-remove attempt | Reply: `"Cannot remove yourself."` |
 | `/admin add` with non-integer user_id | Reply: `"Invalid user ID."` |
+| `/pair add` with duplicate name | Reply: `"Pair '<name>' already exists."` |
+| `/pair add` with non-integer chat ID | Reply: `"Invalid chat ID."` |
+| `/pair remove` with unknown name | Reply: `"Pair '<name>' not found."` |
+| `/stats` with unknown pair name | Reply: `"Pair '<name>' not found."` |
+| Auto discovery — DM send fails (admin hasn't started bot) | Log warning, skip silently |
+| `data/stats.json` missing | Auto-created on first `increment` call |
 
 ---
 
@@ -315,3 +475,7 @@ Or via the DigitalOcean Cloud Firewall dashboard: add an inbound rule for TCP po
 - **`/set` commands:** Unit test valid and invalid inputs; verify `config.yaml` is updated on disk after the command.
 - **`/admin remove` guards:** Unit test last-admin case (single-element list), self-remove case, and valid removal.
 - **`/admin add`:** Unit test duplicate add (idempotent — no error, no duplicate entry) and valid add.
+- **`/pair add`:** Unit test duplicate name guard, invalid chat ID guard, and valid add — verify pair appears in `config.pairs` and `config._raw["pairs"]` after `save_and_reload`.
+- **`/pair remove`:** Unit test unknown name and valid removal.
+- **Stats counter:** Unit test `increment` day-rollover (today resets, week accumulates) and week-rollover (both reset). Unit test `query` for unknown pair returns zeros.
+- **Auto group discovery:** Mock `ChatMemberUpdated` event and verify DM is sent to first admin with correct chat ID.
