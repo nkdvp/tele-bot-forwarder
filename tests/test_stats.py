@@ -2,7 +2,7 @@ import pytest
 import json
 from datetime import date, timedelta
 from unittest.mock import patch
-from bot.stats.counter import StatsCounter
+from bot.stats.counter import StatsCounter, _week_key
 
 
 def test_query_unknown_pair_returns_zeros(tmp_path):
@@ -66,6 +66,8 @@ def test_week_rollover_resets_both(tmp_path):
     assert result["week"] == 1
 
 
-def _week_key(d: date) -> str:
-    y, w, _ = d.isocalendar()
-    return f"{y}-W{w:02d}"
+def test_corrupt_json_file_initializes_empty(tmp_path):
+    path = tmp_path / "stats.json"
+    path.write_text("{ not valid json }")
+    stats = StatsCounter(str(path))
+    assert stats.query("any-pair") == {"today": 0, "week": 0}
