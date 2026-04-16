@@ -1,12 +1,23 @@
 from __future__ import annotations
+import asyncio
 import logging
 import os
 from functools import partial
 from dotenv import load_dotenv
-from telegram.ext import Application, MessageHandler, CommandHandler, filters
+from telegram.ext import (
+    Application,
+    MessageHandler,
+    CommandHandler,
+    ChatMemberHandler,
+    filters,
+    AIORateLimiter,
+)
 from bot.config.loader import load_config
 from bot.masking.engine import MaskStore
+from bot.stats.counter import StatsCounter
+from bot.health.server import run_health_server
 from bot.handlers.message import handle_message
+from bot.handlers.membership import handle_bot_added
 from bot.handlers.commands import (
     cmd_status,
     cmd_enable,
@@ -14,8 +25,11 @@ from bot.handlers.commands import (
     cmd_filter,
     cmd_mask,
     cmd_unmask,
+    cmd_set,
+    cmd_admin,
+    cmd_pair,
+    cmd_stats,
 )
-from bot.stats.counter import StatsCounter
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -27,13 +41,40 @@ logger = logging.getLogger(__name__)
 def main() -> None:
     load_dotenv()
     token = os.environ["BOT_TOKEN"]
+    health_port = int(os.environ.get("HEALTH_PORT", "8080"))
     config = load_config("config.yaml")
     store = MaskStore("data/masks.json")
     stats = StatsCounter("data/stats.json")
 
-    app = Application.builder().token(token).build()
+    async def post_init(app: Application) -> None:
+        asyncio.create_task(run_health_server(port=health_port))
+        if config.monitoring and config.monitoring.alert_chat_id:
+            try:
+                await app.bot.send_message(
+                    chat_id=config.monitoring.alert_chat_id, text="Bot started"
+                )
+            except Exception as e:
+                logger.warning("Could not send startup alert: %s", e)
 
-    # Message handler — receives all group/supergroup messages
+    async def post_shutdown(app: Application) -> None:
+        if config.monitoring and config.monitoring.alert_chat_id:
+            try:
+                await app.bot.send_message(
+                    chat_id=config.monitoring.alert_chat_id, text="Bot stopping"
+                )
+            except Exception as e:
+                logger.warning("Could not send shutdown alert: %s", e)
+
+    app = (
+        Application.builder()
+        .token(token)
+        .rate_limiter(AIORateLimiter())
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
+
+    # Message forwarding pipeline
     app.add_handler(
         MessageHandler(
             filters.ChatType.GROUPS & ~filters.COMMAND,
@@ -41,7 +82,15 @@ def main() -> None:
         )
     )
 
-    # Admin command handlers
+    # Group membership events — auto group ID discovery
+    app.add_handler(
+        ChatMemberHandler(
+            partial(handle_bot_added, config=config),
+            ChatMemberHandler.MY_CHAT_MEMBER,
+        )
+    )
+
+    # Existing v1 commands
     app.add_handler(CommandHandler("status", partial(cmd_status, config=config)))
     app.add_handler(CommandHandler("enable", partial(cmd_enable, config=config)))
     app.add_handler(CommandHandler("disable", partial(cmd_disable, config=config)))
@@ -49,8 +98,16 @@ def main() -> None:
     app.add_handler(CommandHandler("mask", partial(cmd_mask, config=config)))
     app.add_handler(CommandHandler("unmask", partial(cmd_unmask, config=config)))
 
+    # New v2 commands
+    app.add_handler(CommandHandler("set", partial(cmd_set, config=config)))
+    app.add_handler(CommandHandler("admin", partial(cmd_admin, config=config)))
+    app.add_handler(CommandHandler("pair", partial(cmd_pair, config=config)))
+    app.add_handler(
+        CommandHandler("stats", partial(cmd_stats, config=config, stats=stats))
+    )
+
     logger.info("Bot started. Polling...")
-    app.run_polling(drop_pending_updates=True)
+    app.run_polling()
 
 
 if __name__ == "__main__":
