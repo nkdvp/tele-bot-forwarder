@@ -1,6 +1,7 @@
 from __future__ import annotations
 import logging
 from telegram import Message
+from telegram.error import RetryAfter
 from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,8 @@ async def forward_message(
                 animation=message.animation.file_id,
             )
 
+    except RetryAfter:
+        raise  # let AIORateLimiter handle the retry
     except Exception as e:
         logger.error(
             "Failed to forward message to %s from %s: %s",
