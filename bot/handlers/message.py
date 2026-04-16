@@ -41,7 +41,10 @@ async def handle_message(
 
     # Age filter — skip stale messages buffered during downtime
     if config.recovery_window_minutes > 0:
-        age = (datetime.now(timezone.utc) - message.date).total_seconds()
+        msg_date = message.date
+        if msg_date.tzinfo is None:
+            msg_date = msg_date.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - msg_date).total_seconds()
         if age > config.recovery_window_minutes * 60:
             logger.info(
                 "Skipping stale message %.0fs old (limit %dm)",

@@ -76,10 +76,11 @@ async def test_age_filter_passes_recent_message():
     store = MagicMock()
     stats = MagicMock()
 
-    with patch("bot.handlers.message.forward_message", new_callable=AsyncMock):
+    with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
         with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
             await handle_message(update, context, config=config, store=store, stats=stats)
 
+    mock_fwd.assert_called_once()
     stats.increment.assert_called_once_with("test-pair")
 
 
@@ -108,5 +109,20 @@ async def test_stats_not_incremented_when_message_dropped_by_filter():
 
     with patch("bot.handlers.message.forward_message", new_callable=AsyncMock):
         await handle_message(update, context, config=config, store=store, stats=stats)
+
+    stats.increment.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_stats_not_incremented_when_relay_raises():
+    config = _make_config(recovery_window_minutes=15)
+    update, context = _make_update_and_context(age_seconds=0)
+    store = MagicMock()
+    stats = MagicMock()
+
+    with patch("bot.handlers.message.forward_message", new_callable=AsyncMock, side_effect=Exception("relay failed")):
+        with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
+            with pytest.raises(Exception, match="relay failed"):
+                await handle_message(update, context, config=config, store=store, stats=stats)
 
     stats.increment.assert_not_called()
