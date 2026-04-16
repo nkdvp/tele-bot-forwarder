@@ -273,7 +273,9 @@ async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, config: 
         if user_id not in config._raw.get("admins", []):
             config._raw.setdefault("admins", []).append(user_id)
             save_and_reload(config, CONFIG_PATH)
-        await update.message.reply_text(f"Admin {user_id} added.")
+            await update.message.reply_text(f"Admin {user_id} added.")
+        else:
+            await update.message.reply_text(f"User {user_id} is already an admin.")
 
     elif action == "remove":
         caller_id = update.effective_user.id
@@ -286,7 +288,9 @@ async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, config: 
         if user_id in config._raw.get("admins", []):
             config._raw["admins"].remove(user_id)
             save_and_reload(config, CONFIG_PATH)
-        await update.message.reply_text(f"Admin {user_id} removed.")
+            await update.message.reply_text(f"Admin {user_id} removed.")
+        else:
+            await update.message.reply_text(f"User {user_id} is not an admin.")
 
 
 _DEFAULT_PAIR_TYPES = ["text", "photo", "video", "sticker", "document", "voice", "animation"]
@@ -337,7 +341,7 @@ async def cmd_pair(update: Update, context: ContextTypes.DEFAULT_TYPE, config: C
             "bidirectional": bidirectional,
             "enabled": True,
             "filters": {
-                "types": {"allow": _DEFAULT_PAIR_TYPES},
+                "types": {"allow": list(_DEFAULT_PAIR_TYPES)},
                 "keywords": {"block": [], "allow": []},
             },
             "masking": {"a_to_b": {}, "b_to_a": {}},
@@ -355,9 +359,10 @@ async def cmd_pair(update: Update, context: ContextTypes.DEFAULT_TYPE, config: C
         if not any(p.name == name for p in config.pairs):
             await update.message.reply_text(f"Pair '{name}' not found.")
             return
-        config._raw["pairs"] = [p for p in config._raw.get("pairs", []) if p["name"] != name]
+        new_raw_pairs = [p for p in config._raw.get("pairs", []) if p["name"] != name]
+        config._raw["pairs"] = new_raw_pairs
         save_config(config, CONFIG_PATH)
-        config.pairs = [_parse_pair(p) for p in config._raw.get("pairs", [])]
+        config.pairs = [_parse_pair(p) for p in new_raw_pairs]
         await update.message.reply_text(f"Pair '{name}' removed.")
 
 

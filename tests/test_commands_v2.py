@@ -149,6 +149,18 @@ async def test_admin_remove_self_blocked(tmp_path, monkeypatch):
     assert "yourself" in u.message.reply_text.call_args[0][0].lower()
 
 
+@pytest.mark.asyncio
+async def test_admin_remove_nonexistent_id(tmp_path, monkeypatch):
+    from bot.handlers.commands import cmd_admin
+    config, path = _cfg(tmp_path, extra={"admins": [111, 222]})
+    monkeypatch.setattr("bot.handlers.commands.CONFIG_PATH", path)
+    u = _update(111)
+    await cmd_admin(u, _ctx("remove", "999"), config=config)
+    assert 111 in config.admins and 222 in config.admins
+    u.message.reply_text.assert_called_once()
+    assert "not an admin" in u.message.reply_text.call_args[0][0].lower()
+
+
 # ── /pair tests ───────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
