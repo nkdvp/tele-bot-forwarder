@@ -15,6 +15,7 @@ from bot.handlers.commands import (
     cmd_mask,
     cmd_unmask,
 )
+from bot.stats.counter import StatsCounter
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -28,6 +29,7 @@ def main() -> None:
     token = os.environ["BOT_TOKEN"]
     config = load_config("config.yaml")
     store = MaskStore("data/masks.json")
+    stats = StatsCounter("data/stats.json")
 
     app = Application.builder().token(token).build()
 
@@ -35,7 +37,7 @@ def main() -> None:
     app.add_handler(
         MessageHandler(
             filters.ChatType.GROUPS & ~filters.COMMAND,
-            partial(handle_message, config=config, store=store),
+            partial(handle_message, config=config, store=store, stats=stats),
         )
     )
 
