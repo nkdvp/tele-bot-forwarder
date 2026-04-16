@@ -4,6 +4,7 @@ import logging
 import os
 from functools import partial
 from dotenv import load_dotenv
+from telegram import Update
 from telegram.ext import (
     Application,
     MessageHandler,
@@ -47,7 +48,8 @@ def main() -> None:
     stats = StatsCounter("data/stats.json")
 
     async def post_init(app: Application) -> None:
-        asyncio.create_task(run_health_server(port=health_port))
+        task = asyncio.create_task(run_health_server(port=health_port))
+        app.bot_data["_health_task"] = task
         if config.monitoring and config.monitoring.alert_chat_id:
             try:
                 await app.bot.send_message(
@@ -57,6 +59,9 @@ def main() -> None:
                 logger.warning("Could not send startup alert: %s", e)
 
     async def post_shutdown(app: Application) -> None:
+        task = app.bot_data.get("_health_task")
+        if task:
+            task.cancel()
         if config.monitoring and config.monitoring.alert_chat_id:
             try:
                 await app.bot.send_message(
@@ -107,7 +112,7 @@ def main() -> None:
     )
 
     logger.info("Bot started. Polling...")
-    app.run_polling()
+    app.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
