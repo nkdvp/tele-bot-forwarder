@@ -85,3 +85,45 @@ systemctl stop telegram-forwarder
 # Check status
 systemctl status telegram-forwarder
 ```
+
+---
+
+## v2: Health Monitoring Setup
+
+### 1. Open port 8080 on the server
+
+```bash
+ufw allow 8080/tcp
+```
+
+Or add an inbound rule via the DigitalOcean Cloud Firewall dashboard (TCP port 8080, all sources).
+
+### 2. Verify health endpoint
+
+After deploying and starting the service:
+
+```bash
+curl http://localhost:8080/health
+# → {"status": "ok", "uptime_seconds": 42}
+```
+
+### 3. Set up UptimeRobot (free external monitor)
+
+1. Create a free account at https://uptimerobot.com
+2. Click **Add New Monitor**
+3. Type: **HTTP(s)**
+4. URL: `http://<your-droplet-ip>:8080/health`
+5. Monitoring interval: **5 minutes**
+6. Alert contacts: add your email, or configure a Telegram alert contact
+
+UptimeRobot will alert you when the health endpoint stops responding (bot crashed or server down).
+
+### 4. Configure Telegram alerts (optional)
+
+In `config.yaml`, set `monitoring.alert_chat_id` to your personal Telegram user ID to receive
+"Bot started" / "Bot stopping" messages directly.
+
+To find your user ID: send any message to the bot and check the logs, or use @userinfobot.
+
+Before setting `alert_chat_id`, send `/start` to your bot in a private chat — otherwise
+the bot cannot DM you.

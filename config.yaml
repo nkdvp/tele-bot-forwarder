@@ -1,27 +1,26 @@
 admins:
-- 2043771174
+  - 123456789  # Replace with your Telegram user ID
+
+recovery_window_minutes: 15   # 0 = replay all buffered messages; >0 = skip older than N min
+
+monitoring:                    # Remove this block entirely to disable startup/shutdown alerts
+  alert_chat_id: 123456789     # Chat ID to receive alerts (use your user ID for DMs)
+
 masking:
   users: {}
+
 pairs:
-- bidirectional: true
-  enabled: true
-  filters:
-    keywords:
-      allow: []
-      block:
-      - dmm
-    types:
-      allow:
-      - text
-      - photo
-      - video
-      - sticker
-      - document
-      - voice
-      - animation
-  group_a_chat_id: -1003746947950
-  group_b_chat_id: -1003766457201
-  masking:
-    a_to_b: {}
-    b_to_a: {}
-  name: example-pair
+  - name: "customer-internal"
+    group_a_chat_id: -1001234567890
+    group_b_chat_id: -1009876543210
+    bidirectional: true
+    enabled: true
+    filters:
+      types:
+        allow: [text, photo, video, sticker, document, voice, animation]
+      keywords:
+        block: []
+        allow: []
+    masking:
+      a_to_b: {}
+      b_to_a: {}
