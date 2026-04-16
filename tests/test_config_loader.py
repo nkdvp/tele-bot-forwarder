@@ -138,3 +138,23 @@ def test_load_config_monitoring_present(tmp_path):
     config = load_config(str(config_file))
     assert config.monitoring is not None
     assert config.monitoring.alert_chat_id == 987654321
+
+
+def test_save_and_reload_syncs_recovery_window(tmp_path):
+    data = {**MINIMAL_CONFIG, "recovery_window_minutes": 15}
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(data))
+    config = load_config(str(config_file))
+    config._raw["recovery_window_minutes"] = 45
+    save_and_reload(config, str(config_file))
+    assert config.recovery_window_minutes == 45
+
+
+def test_save_and_reload_syncs_monitoring(tmp_path):
+    data = {**MINIMAL_CONFIG, "monitoring": {"alert_chat_id": 111}}
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(data))
+    config = load_config(str(config_file))
+    config._raw["monitoring"]["alert_chat_id"] = 999
+    save_and_reload(config, str(config_file))
+    assert config.monitoring.alert_chat_id == 999

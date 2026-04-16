@@ -19,3 +19,5 @@ def save_and_reload(config: Config, path: str = "config.yaml") -> None:
     config.admins = fresh.admins
     config.masking = fresh.masking
     config.pairs = fresh.pairs
+    config.recovery_window_minutes = fresh.recovery_window_minutes
+    config.monitoring = fresh.monitoring
