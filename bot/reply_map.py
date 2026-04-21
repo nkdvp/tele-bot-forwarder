@@ -25,4 +25,4 @@ class ReplyMap:
     def _save(self) -> None:
         os.makedirs(os.path.dirname(self._path) or ".", exist_ok=True)
         with open(self._path, "w") as f:
-            json.dump(self._data, f)
+            json.dump(self._data, f, indent=2)
