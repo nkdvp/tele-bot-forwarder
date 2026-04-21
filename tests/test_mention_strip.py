@@ -35,3 +35,7 @@ def test_only_mention_becomes_empty():
 
 def test_collapses_extra_whitespace():
     assert strip_mentions("hello @x world") == "hello world"
+
+
+def test_trailing_punctuation_after_mention():
+    assert strip_mentions("Hi @user, how are you?") == "Hi , how are you?"

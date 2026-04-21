@@ -7,7 +7,7 @@ from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
 
-_MENTION_RE = re.compile(r'(?<!\w)@\w+')
+_MENTION_RE = re.compile(r'(?<!\w)@[A-Za-z0-9_]+')
 
 
 def strip_mentions(text: str) -> str:
