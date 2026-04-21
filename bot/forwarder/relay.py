@@ -1,10 +1,18 @@
 from __future__ import annotations
+import re
 import logging
 from telegram import Message
 from telegram.error import RetryAfter
 from telegram.ext import ContextTypes
 
 logger = logging.getLogger(__name__)
+
+_MENTION_RE = re.compile(r'(?<!\w)@\w+')
+
+
+def strip_mentions(text: str) -> str:
+    result = re.sub(_MENTION_RE, '', text)
+    return ' '.join(result.split())
 
 
 async def forward_message(
