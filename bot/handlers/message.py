@@ -8,6 +8,7 @@ from bot.filters.type_filter import passes_type_filter
 from bot.filters.keyword_filter import passes_keyword_filter
 from bot.masking.engine import resolve_display_name, MaskStore
 from bot.forwarder.relay import forward_message
+from bot.reply_map import ReplyMap
 from bot.stats.counter import StatsCounter
 
 logger = logging.getLogger(__name__)
@@ -30,16 +31,15 @@ async def handle_message(
     config: Config,
     store: MaskStore,
     stats: StatsCounter,
+    reply_map: ReplyMap,
 ) -> None:
     message = update.effective_message
     if not message or not message.from_user:
         return
 
-    # Loop prevention: drop messages sent by the bot itself
     if message.from_user.id == context.bot.id:
         return
 
-    # Age filter — skip stale messages buffered during downtime
     if config.recovery_window_minutes > 0:
         msg_date = message.date
         if msg_date.tzinfo is None:
@@ -79,5 +79,5 @@ async def handle_message(
     )
 
     dest_chat_id = pair.group_b_chat_id if direction == "a_to_b" else pair.group_a_chat_id
-    await forward_message(message, display_name, dest_chat_id, context)
+    await forward_message(message, display_name, dest_chat_id, context, reply_map, config)
     stats.increment(pair.name)

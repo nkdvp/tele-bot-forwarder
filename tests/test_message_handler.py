@@ -50,7 +50,7 @@ def _make_update_and_context(age_seconds: int = 0, chat_id: int = -100111):
     update.effective_chat.id = chat_id
 
     context = MagicMock()
-    context.bot.id = 1  # different from sender (999)
+    context.bot.id = 1
 
     return update, context
 
@@ -61,9 +61,10 @@ async def test_age_filter_skips_stale_message():
     update, context = _make_update_and_context(age_seconds=20 * 60)
     store = MagicMock()
     stats = MagicMock()
+    reply_map = MagicMock()
 
     with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
-        await handle_message(update, context, config=config, store=store, stats=stats)
+        await handle_message(update, context, config=config, store=store, stats=stats, reply_map=reply_map)
 
     mock_fwd.assert_not_called()
     stats.increment.assert_not_called()
@@ -75,10 +76,11 @@ async def test_age_filter_passes_recent_message():
     update, context = _make_update_and_context(age_seconds=5 * 60)
     store = MagicMock()
     stats = MagicMock()
+    reply_map = MagicMock()
 
     with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
         with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
-            await handle_message(update, context, config=config, store=store, stats=stats)
+            await handle_message(update, context, config=config, store=store, stats=stats, reply_map=reply_map)
 
     mock_fwd.assert_called_once()
     stats.increment.assert_called_once_with("test-pair")
@@ -87,13 +89,14 @@ async def test_age_filter_passes_recent_message():
 @pytest.mark.asyncio
 async def test_age_filter_disabled_when_zero():
     config = _make_config(recovery_window_minutes=0)
-    update, context = _make_update_and_context(age_seconds=60 * 60)  # 1 hour old
+    update, context = _make_update_and_context(age_seconds=60 * 60)
     store = MagicMock()
     stats = MagicMock()
+    reply_map = MagicMock()
 
     with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
         with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
-            await handle_message(update, context, config=config, store=store, stats=stats)
+            await handle_message(update, context, config=config, store=store, stats=stats, reply_map=reply_map)
 
     mock_fwd.assert_called_once()
 
@@ -102,13 +105,13 @@ async def test_age_filter_disabled_when_zero():
 async def test_stats_not_incremented_when_message_dropped_by_filter():
     config = _make_config(recovery_window_minutes=15)
     update, context = _make_update_and_context()
-    # Pair is disabled
     config.pairs[0].enabled = False
     store = MagicMock()
     stats = MagicMock()
+    reply_map = MagicMock()
 
     with patch("bot.handlers.message.forward_message", new_callable=AsyncMock):
-        await handle_message(update, context, config=config, store=store, stats=stats)
+        await handle_message(update, context, config=config, store=store, stats=stats, reply_map=reply_map)
 
     stats.increment.assert_not_called()
 
@@ -119,10 +122,29 @@ async def test_stats_not_incremented_when_relay_raises():
     update, context = _make_update_and_context(age_seconds=0)
     store = MagicMock()
     stats = MagicMock()
+    reply_map = MagicMock()
 
     with patch("bot.handlers.message.forward_message", new_callable=AsyncMock, side_effect=Exception("relay failed")):
         with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
             with pytest.raises(Exception, match="relay failed"):
-                await handle_message(update, context, config=config, store=store, stats=stats)
+                await handle_message(update, context, config=config, store=store, stats=stats, reply_map=reply_map)
 
     stats.increment.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reply_map_and_config_passed_to_forward_message():
+    config = _make_config(recovery_window_minutes=0)
+    update, context = _make_update_and_context(age_seconds=0)
+    store = MagicMock()
+    stats = MagicMock()
+    reply_map = MagicMock()
+
+    with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
+        with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
+            await handle_message(update, context, config=config, store=store, stats=stats, reply_map=reply_map)
+
+    mock_fwd.assert_called_once()
+    call_args = mock_fwd.call_args.args
+    assert call_args[4] is reply_map
+    assert call_args[5] is config

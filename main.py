@@ -16,6 +16,7 @@ from telegram.ext import (
 from bot.config.loader import load_config
 from bot.masking.engine import MaskStore
 from bot.stats.counter import StatsCounter
+from bot.reply_map import ReplyMap
 from bot.health.server import run_health_server
 from bot.handlers.message import handle_message
 from bot.handlers.membership import handle_bot_added
@@ -46,6 +47,7 @@ def main() -> None:
     config = load_config("config.yaml")
     store = MaskStore("data/masks.json")
     stats = StatsCounter("data/stats.json")
+    reply_map = ReplyMap("data/reply_map.json")
 
     async def post_init(app: Application) -> None:
         task = asyncio.create_task(run_health_server(port=health_port))
@@ -95,7 +97,7 @@ def main() -> None:
     app.add_handler(
         MessageHandler(
             filters.ChatType.GROUPS & ~filters.COMMAND,
-            partial(handle_message, config=config, store=store, stats=stats),
+            partial(handle_message, config=config, store=store, stats=stats, reply_map=reply_map),
         )
     )
 
