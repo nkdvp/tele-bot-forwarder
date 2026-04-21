@@ -139,6 +139,8 @@ async def forward_message(
             e,
         )
 
+    # For two-send types (voice/sticker/animation), the header carries reply_to_id
+    # and the media message_id is recorded so future reply lookups resolve correctly.
     if sent is not None:
         try:
             reply_map.record(src_chat_id, src_msg_id, dest_chat_id, sent.message_id)

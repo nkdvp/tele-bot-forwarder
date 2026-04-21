@@ -150,3 +150,62 @@ async def test_cross_group_reply_chain(tmp_path):
 
     # reply_to_message_id should be 10 (original message in B)
     assert context.bot.send_message.call_args.kwargs["reply_to_message_id"] == 10
+
+
+@pytest.mark.asyncio
+async def test_photo_caption_is_stripped(tmp_path):
+    config = _make_config(strip_mentions=True)
+    reply_map = ReplyMap(str(tmp_path / "reply_map.json"))
+
+    msg = _make_message()
+    msg.text = None
+    msg.caption = "Check @nicky photo"
+    msg.photo = [MagicMock(file_id="photo_file_id")]
+    context = _make_context(sent_msg_id=55)
+
+    await forward_message(msg, "Alice", -100222, context, reply_map, config)
+
+    call_kwargs = context.bot.send_photo.call_args.kwargs
+    assert "@nicky" not in call_kwargs["caption"]
+    assert "photo" in call_kwargs["caption"]
+
+
+@pytest.mark.asyncio
+async def test_photo_no_caption_reply_to_id_on_header(tmp_path):
+    config = _make_config(strip_mentions=False)
+    reply_map = ReplyMap(str(tmp_path / "reply_map.json"))
+    reply_map.record(-100111, 50, -100222, 77)
+
+    msg = _make_message(reply_to_id=50)
+    msg.text = None
+    msg.caption = None
+    msg.photo = [MagicMock(file_id="photo_file_id")]
+    context = _make_context(sent_msg_id=55)
+
+    await forward_message(msg, "Alice", -100222, context, reply_map, config)
+
+    # reply_to_id goes on the header send_message, not on send_photo
+    header_kwargs = context.bot.send_message.call_args.kwargs
+    assert header_kwargs["reply_to_message_id"] == 77
+    photo_kwargs = context.bot.send_photo.call_args.kwargs
+    assert photo_kwargs["reply_to_message_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_voice_reply_to_id_on_header_media_recorded(tmp_path):
+    config = _make_config(strip_mentions=False)
+    reply_map = ReplyMap(str(tmp_path / "reply_map.json"))
+    reply_map.record(-100111, 50, -100222, 77)
+
+    msg = _make_message(reply_to_id=50, chat_id=-100111, msg_id=51)
+    msg.text = None
+    msg.voice = MagicMock(file_id="voice_file_id")
+    context = _make_context(sent_msg_id=88)
+
+    await forward_message(msg, "Alice", -100222, context, reply_map, config)
+
+    # Header send_message gets reply_to_id
+    header_kwargs = context.bot.send_message.call_args.kwargs
+    assert header_kwargs["reply_to_message_id"] == 77
+    # voice media message_id is recorded
+    assert reply_map.lookup(-100111, 51) == (-100222, 88)
