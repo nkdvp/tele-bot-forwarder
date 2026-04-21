@@ -12,8 +12,15 @@ class ReplyMap:
                 self._data = json.load(f)
 
     def record(self, src_chat: int, src_msg: int, dst_chat: int, dst_msg: int) -> None:
-        self._data[f"{src_chat}:{src_msg}"] = [dst_chat, dst_msg]
-        self._data[f"{dst_chat}:{dst_msg}"] = [src_chat, src_msg]
+        src_key = f"{src_chat}:{src_msg}"
+        dst_key = f"{dst_chat}:{dst_msg}"
+        existing = self._data.get(src_key)
+        if existing is not None:
+            old_dst_key = f"{existing[0]}:{existing[1]}"
+            if old_dst_key != dst_key:
+                self._data.pop(old_dst_key, None)
+        self._data[src_key] = [dst_chat, dst_msg]
+        self._data[dst_key] = [src_chat, src_msg]
         self._save()
 
     def lookup(self, chat_id: int, msg_id: int) -> tuple[int, int] | None:

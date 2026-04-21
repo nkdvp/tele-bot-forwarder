@@ -42,3 +42,5 @@ def test_overwrite_existing_entry(tmp_path):
     store.record(-100111, 100, -100222, 200)
     store.record(-100111, 100, -100222, 999)
     assert store.lookup(-100111, 100) == (-100222, 999)
+    assert store.lookup(-100222, 999) == (-100111, 100)
+    assert store.lookup(-100222, 200) is None  # stale reverse key removed

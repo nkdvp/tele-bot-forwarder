@@ -9,6 +9,7 @@ from bot.config.loader import Config
 
 logger = logging.getLogger(__name__)
 
+# [A-Za-z0-9_] matches Telegram's username charset; \w would also strip Unicode non-mentions.
 _MENTION_RE = re.compile(r'(?<!\w)@[A-Za-z0-9_]+')
 
 
