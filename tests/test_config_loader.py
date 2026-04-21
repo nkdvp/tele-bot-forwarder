@@ -158,3 +158,18 @@ def test_save_and_reload_syncs_monitoring(tmp_path):
     config._raw["monitoring"]["alert_chat_id"] = 999
     save_and_reload(config, str(config_file))
     assert config.monitoring.alert_chat_id == 999
+
+
+def test_strip_mentions_defaults_to_true(tmp_path):
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(MINIMAL_CONFIG))
+    config = load_config(str(config_file))
+    assert config.strip_mentions is True
+
+
+def test_strip_mentions_explicit_false(tmp_path):
+    data = {**MINIMAL_CONFIG, "strip_mentions": False}
+    config_file = tmp_path / "config.yaml"
+    config_file.write_text(yaml.dump(data))
+    config = load_config(str(config_file))
+    assert config.strip_mentions is False

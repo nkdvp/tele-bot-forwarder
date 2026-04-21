@@ -43,6 +43,7 @@ class Config:
     masking: GlobalMaskingConfig
     pairs: list[PairConfig]
     recovery_window_minutes: int = 15
+    strip_mentions: bool = True
     monitoring: MonitoringConfig | None = None
     _raw: dict = field(default_factory=dict, repr=False)
 
@@ -95,6 +96,7 @@ def load_config(path: str = "config.yaml") -> Config:
         masking=global_masking,
         pairs=[_parse_pair(p) for p in raw["pairs"]],
         recovery_window_minutes=int(raw.get("recovery_window_minutes", 15)),
+        strip_mentions=bool(raw.get("strip_mentions", True)),
         monitoring=monitoring,
         _raw=raw,
     )
