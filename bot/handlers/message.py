@@ -37,9 +37,11 @@ async def handle_message(
     if not message or not message.from_user:
         return
 
+    # Loop prevention: drop messages sent by the bot itself
     if message.from_user.id == context.bot.id:
         return
 
+    # Age filter — skip stale messages buffered during downtime
     if config.recovery_window_minutes > 0:
         msg_date = message.date
         if msg_date.tzinfo is None:
