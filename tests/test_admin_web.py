@@ -246,3 +246,41 @@ async def test_post_login_invalid_credentials_shows_error(tmp_path):
         assert "Invalid" in body
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_page_renders_html(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        resp = await client.get("/dashboard")
+        assert resp.status == 200
+        assert "text/html" in resp.content_type
+        body = await resp.text()
+        assert "Dashboard" in body
+        assert "Total Pairs" in body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_dashboard_requires_auth(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        resp = await client.get("/dashboard", allow_redirects=False)
+        assert resp.status == 302
+        assert resp.headers["Location"] == "/login"
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_index_redirects_to_dashboard(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        resp = await client.get("/", allow_redirects=False)
+        assert resp.status == 302
+        assert resp.headers["Location"] == "/dashboard"
+    finally:
+        await client.close()

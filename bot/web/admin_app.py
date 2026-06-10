@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 import json
 from pathlib import Path
 from typing import Any
@@ -82,7 +83,11 @@ async def auth_middleware(request: web.Request, handler):
     if request.path in public_paths:
         return await handler(request)
 
-    is_protected = request.path.startswith("/pairs") or request.path.startswith("/api")
+    is_protected = (
+        request.path.startswith("/pairs")
+        or request.path.startswith("/api")
+        or request.path in {"/dashboard", "/backups"}
+    )
     if not is_protected:
         return await handler(request)
 
@@ -99,7 +104,30 @@ async def auth_middleware(request: web.Request, handler):
 
 
 async def index_handler(_: web.Request) -> web.StreamResponse:
-    raise web.HTTPFound("/pairs")
+    raise web.HTTPFound("/dashboard")
+
+
+async def dashboard_page(request: web.Request) -> web.Response:
+    stats_path = request.app[STATS_PATH_KEY]
+    try:
+        with open(stats_path) as f:
+            raw: dict = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        raw = {}
+
+    store = request.app[CONFIG_STORE_KEY]
+    pairs = store.list_pairs()
+    backup_dir = request.app[BACKUP_DIR_KEY]
+
+    return aiohttp_jinja2.render_template("dashboard.html", request, {
+        "active_page": "dashboard",
+        "user": request["user"],
+        "today": sum(v.get("today", 0) for v in raw.values()),
+        "week": sum(v.get("week", 0) for v in raw.values()),
+        "pairs_total": len(pairs),
+        "pairs_active": sum(1 for p in pairs if p.enabled),
+        "last_backup": _get_last_backup(backup_dir),
+    })
 
 
 async def login_page(request: web.Request) -> web.Response:
@@ -157,6 +185,37 @@ async def api_logout(request: web.Request) -> web.StreamResponse:
 
 def _split_csv(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
+
+
+def _get_last_backup(backup_dir: str) -> str | None:
+    p = Path(backup_dir)
+    if not p.exists():
+        return None
+    files = sorted(p.glob("*.db"), key=lambda f: f.stat().st_mtime, reverse=True)
+    if not files:
+        return None
+    return datetime.fromtimestamp(files[0].stat().st_mtime).strftime("%Y-%m-%d %H:%M")
+
+
+def _list_backups(backup_dir: str) -> list[dict]:
+    p = Path(backup_dir)
+    if not p.exists():
+        return []
+    result = []
+    for f in sorted(p.glob("*.db"), key=lambda f: f.stat().st_mtime, reverse=True):
+        size = f.stat().st_size
+        if size < 1024:
+            size_str = f"{size} B"
+        elif size < 1024 * 1024:
+            size_str = f"{size / 1024:.1f} KB"
+        else:
+            size_str = f"{size / (1024 * 1024):.1f} MB"
+        result.append({
+            "name": f.name,
+            "size": size_str,
+            "created_at": datetime.fromtimestamp(f.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+        })
+    return result
 
 
 async def pairs_page(request: web.Request) -> web.Response:
@@ -435,6 +494,7 @@ def create_admin_app(
 
     app.router.add_static("/static/", path=str(Path(__file__).parent / "static"), name="static")
     app.router.add_get("/", index_handler)
+    app.router.add_get("/dashboard", dashboard_page)
     app.router.add_get("/login", login_page)
     app.router.add_post("/login", post_login)
     app.router.add_post("/api/login", api_login)
