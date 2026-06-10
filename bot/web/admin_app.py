@@ -379,6 +379,30 @@ async def api_backup_now(request: web.Request) -> web.Response:
     return web.json_response(asdict(result), status=status)
 
 
+async def api_stats(request: web.Request) -> web.Response:
+    stats_path = request.app[STATS_PATH_KEY]
+    try:
+        with open(stats_path) as f:
+            raw: dict = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        raw = {}
+
+    today = sum(v.get("today", 0) for v in raw.values())
+    week = sum(v.get("week", 0) for v in raw.values())
+
+    store = request.app[CONFIG_STORE_KEY]
+    pairs = store.list_pairs()
+    pairs_total = len(pairs)
+    pairs_active = sum(1 for p in pairs if p.enabled)
+
+    return web.json_response({
+        "today": today,
+        "week": week,
+        "pairs_total": pairs_total,
+        "pairs_active": pairs_active,
+    })
+
+
 def create_admin_app(
     *,
     db_path: str,
@@ -417,4 +441,5 @@ def create_admin_app(
     app.router.add_put("/api/pairs/{name}", api_update_pair)
     app.router.add_delete("/api/pairs/{name}", api_delete_pair)
     app.router.add_post("/api/backup", api_backup_now)
+    app.router.add_get("/api/stats", api_stats)
     return app

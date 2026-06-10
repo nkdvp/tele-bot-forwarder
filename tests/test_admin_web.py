@@ -22,6 +22,7 @@ async def _make_client(tmp_path: Path) -> tuple[TestClient, str]:
         auth_store=auth_store,
         backup_dir=str(tmp_path / "backups"),
         backup_retention_days=30,
+        stats_path=str(tmp_path / "stats.json"),
     )
     server = TestServer(app)
     client = TestClient(server)
@@ -162,5 +163,42 @@ async def test_manual_backup_endpoint_creates_file(tmp_path):
         assert payload["success"] is True
         assert payload["backup_path"] is not None
         assert Path(payload["backup_path"]).exists()
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_api_stats_returns_aggregated_counts(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+
+        stats_file = tmp_path / "stats.json"
+        stats_file.write_text(json.dumps({
+            "pair-a": {"date": "2026-06-10", "week_key": "2026-W24", "today": 5, "week": 20},
+            "pair-b": {"date": "2026-06-10", "week_key": "2026-W24", "today": 3, "week": 15},
+        }))
+
+        resp = await client.get("/api/stats")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["today"] == 8
+        assert data["week"] == 35
+        assert "pairs_total" in data
+        assert "pairs_active" in data
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_api_stats_returns_zeros_when_no_stats_file(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        resp = await client.get("/api/stats")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["today"] == 0
+        assert data["week"] == 0
     finally:
         await client.close()
