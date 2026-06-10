@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Pairs{% endblock %}
+{% block page_title %}Pairs{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <form method="get" action="/pairs" class="filter-bar">
+    <input class="search-input" name="q" placeholder="Search by name…" value="{{ q or '' }}" />
+    <button type="submit" class="btn btn-ghost btn-sm">Search</button>
+    {% if q %}<a href="/pairs" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
+  </form>
+  <a href="/pairs/new" class="btn btn-primary">+ New Pair</a>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Group A</th>
+        <th>Group B</th>
+        <th>Direction</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pair in pairs %}
+      <tr data-pair="{{ pair.name }}">
+        <td><strong>{{ pair.name }}</strong></td>
+        <td class="td-muted">{{ pair.group_a_chat_id }}</td>
+        <td class="td-muted">{{ pair.group_b_chat_id }}</td>
+        <td>
+          {% if pair.bidirectional %}
+            <span style="color:var(--accent)">⇄ Bidirectional</span>
+          {% else %}
+            <span style="color:var(--text-muted)">→ One-way</span>
+          {% endif %}
+        </td>
+        <td>
+          <span class="badge {% if pair.enabled %}badge-success{% else %}badge-danger{% endif %}"
+                data-enabled-badge="{{ pair.name }}">
+            {% if pair.enabled %}Enabled{% else %}Disabled{% endif %}
+          </span>
+        </td>
+        <td>
+          <div class="td-actions">
+            <label class="toggle" title="Toggle enabled">
+              <input type="checkbox" {% if pair.enabled %}checked{% endif %}
+                     onchange="togglePairEnabled('{{ pair.name }}', this)" />
+              <span class="toggle-track"></span>
+            </label>
+            <a href="/pairs/{{ pair.name }}/edit" class="btn btn-ghost btn-sm">Edit</a>
+            <button class="btn btn-danger btn-sm"
+                    onclick="openDeleteModal('{{ pair.name }}')">Delete</button>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="6">
+          <div class="empty-state">
+            <p>No pairs configured yet.</p>
+            <a href="/pairs/new" class="btn btn-primary">Create your first pair</a>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Delete confirmation modal -->
+<div id="delete-modal" class="modal-overlay">
+  <div class="modal">
+    <h3>Delete pair?</h3>
+    <p>Are you sure you want to delete <strong id="modal-pair-name"></strong>?
+       This action cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Cancel</button>
+      <button id="modal-confirm" class="btn btn-danger">Delete</button>
+    </div>
+  </div>
+</div>
+{% endblock %}

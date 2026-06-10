@@ -233,36 +233,12 @@ async def pairs_page(request: web.Request) -> web.Response:
         enabled=enabled,
         bidirectional=bidirectional,
     )
-
-    rows = "\n".join(
-        (
-            f"<tr><td>{p.name}</td><td>{p.group_a_chat_id}</td><td>{p.group_b_chat_id}</td>"
-            f"<td>{p.enabled}</td><td>{p.bidirectional}</td>"
-            f"<td><a href='/pairs/{p.name}/edit'>edit</a></td>"
-            f"<td><form method='post' action='/pairs/{p.name}/delete'>"
-            f"<button type='submit'>delete</button></form></td></tr>"
-        )
-        for p in pairs
-    )
-    html = f"""
-    <html><body>
-      <h1>Pairs</h1>
-      <form method="get" action="/pairs">
-        <input name="q" placeholder="name" value="{q or ''}" />
-        <input name="chat_id" placeholder="chat id" value="{chat_raw or ''}" />
-        <input name="enabled" placeholder="true/false" value="{enabled_raw or ''}" />
-        <input name="bidirectional" placeholder="true/false" value="{bidir_raw or ''}" />
-        <button type="submit">Search</button>
-      </form>
-      <p><a href="/pairs/new">Create Pair</a></p>
-      <table border="1">
-        <tr><th>Name</th><th>A</th><th>B</th><th>Enabled</th><th>Bidir</th><th colspan="2">Actions</th></tr>
-        {rows}
-      </table>
-      <form method="post" action="/api/logout"><button type="submit">Logout</button></form>
-    </body></html>
-    """
-    return web.Response(text=html, content_type="text/html")
+    return aiohttp_jinja2.render_template("pairs.html", request, {
+        "active_page": "pairs",
+        "user": request["user"],
+        "pairs": pairs,
+        "q": q,
+    })
 
 
 def _pair_form_html(pair: PairRecord | None = None) -> str:

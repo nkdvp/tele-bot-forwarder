@@ -284,3 +284,26 @@ async def test_index_redirects_to_dashboard(tmp_path):
         assert resp.headers["Location"] == "/dashboard"
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pairs_page_renders_pairs(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        store = SQLiteConfigStore(db_path)
+        store.create_pair(PairRecord(
+            id=None, name="test-pair",
+            group_a_chat_id=-100111, group_b_chat_id=-100222,
+            bidirectional=True, enabled=True,
+            filters=PairFilters(types_allow=["text"], keywords_block=[], keywords_allow=[]),
+        ))
+
+        resp = await client.get("/pairs")
+        assert resp.status == 200
+        assert "text/html" in resp.content_type
+        body = await resp.text()
+        assert "test-pair" in body
+        assert "Pairs" in body
+    finally:
+        await client.close()
