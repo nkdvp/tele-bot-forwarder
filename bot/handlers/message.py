@@ -3,13 +3,19 @@ import logging
 from datetime import datetime, timezone
 from telegram import Update
 from telegram.ext import ContextTypes
-from bot.config.loader import Config, PairConfig
+from bot.config.loader import (
+    Config,
+    FilterConfig,
+    PairConfig,
+    PairMaskingConfig,
+)
 from bot.filters.type_filter import passes_type_filter
 from bot.filters.keyword_filter import passes_keyword_filter
 from bot.masking.engine import resolve_display_name, MaskStore
 from bot.forwarder.relay import forward_message
 from bot.reply_map import ReplyMap
 from bot.stats.counter import StatsCounter
+from bot.storage.config_store import SQLiteConfigStore, PairRecord
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +31,34 @@ def _find_pair_and_direction(
     return None, None
 
 
+def _store_pair_to_runtime_pair(pair: PairRecord) -> PairConfig:
+    return PairConfig(
+        name=pair.name,
+        group_a_chat_id=pair.group_a_chat_id,
+        group_b_chat_id=pair.group_b_chat_id,
+        bidirectional=pair.bidirectional,
+        enabled=pair.enabled,
+        filters=FilterConfig(
+            types_allow=pair.filters.types_allow,
+            keywords_block=pair.filters.keywords_block,
+            keywords_allow=pair.filters.keywords_allow,
+        ),
+        masking=PairMaskingConfig(a_to_b={}, b_to_a={}),
+    )
+
+
+def _find_pair_and_direction_from_store(
+    chat_id: int, config_store: SQLiteConfigStore
+) -> tuple[PairConfig, str] | tuple[None, None]:
+    matches = config_store.list_pairs(chat_id=chat_id)
+    for pair in matches:
+        if chat_id == pair.group_a_chat_id:
+            return _store_pair_to_runtime_pair(pair), "a_to_b"
+        if pair.bidirectional and chat_id == pair.group_b_chat_id:
+            return _store_pair_to_runtime_pair(pair), "b_to_a"
+    return None, None
+
+
 async def handle_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -32,6 +66,7 @@ async def handle_message(
     store: MaskStore,
     stats: StatsCounter,
     reply_map: ReplyMap,
+    config_store: SQLiteConfigStore | None = None,
 ) -> None:
     message = update.effective_message
     if not message or not message.from_user:
@@ -56,7 +91,10 @@ async def handle_message(
             return
 
     chat_id = update.effective_chat.id
-    pair, direction = _find_pair_and_direction(chat_id, config)
+    if config_store is not None:
+        pair, direction = _find_pair_and_direction_from_store(chat_id, config_store)
+    else:
+        pair, direction = _find_pair_and_direction(chat_id, config)
     if pair is None:
         return
 

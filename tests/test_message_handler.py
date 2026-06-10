@@ -5,6 +5,7 @@ from bot.handlers.message import handle_message
 from bot.config.loader import (
     Config, GlobalMaskingConfig, PairConfig, FilterConfig, PairMaskingConfig
 )
+from bot.storage.config_store import PairFilters, PairRecord
 
 
 def _make_config(recovery_window_minutes: int = 15) -> Config:
@@ -148,3 +149,85 @@ async def test_reply_map_and_config_passed_to_forward_message():
     call_args = mock_fwd.call_args.args
     assert call_args[4] is reply_map
     assert call_args[5] is config
+
+
+@pytest.mark.asyncio
+async def test_uses_db_config_store_for_pair_lookup_when_provided():
+    config = _make_config(recovery_window_minutes=0)
+    config.pairs = []
+    update, context = _make_update_and_context(age_seconds=0)
+    store = MagicMock()
+    stats = MagicMock()
+    reply_map = MagicMock()
+    config_store = MagicMock()
+    config_store.list_pairs.return_value = [
+        PairRecord(
+            id=1,
+            name="db-pair",
+            group_a_chat_id=-100111,
+            group_b_chat_id=-100222,
+            bidirectional=True,
+            enabled=True,
+            filters=PairFilters(
+                types_allow=["text"],
+                keywords_block=[],
+                keywords_allow=[],
+            ),
+        )
+    ]
+
+    with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
+        with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
+            await handle_message(
+                update,
+                context,
+                config=config,
+                store=store,
+                stats=stats,
+                reply_map=reply_map,
+                config_store=config_store,
+            )
+
+    mock_fwd.assert_called_once()
+    stats.increment.assert_called_once_with("db-pair")
+
+
+@pytest.mark.asyncio
+async def test_db_config_store_respects_disabled_pair():
+    config = _make_config(recovery_window_minutes=0)
+    config.pairs = []
+    update, context = _make_update_and_context(age_seconds=0)
+    store = MagicMock()
+    stats = MagicMock()
+    reply_map = MagicMock()
+    config_store = MagicMock()
+    config_store.list_pairs.return_value = [
+        PairRecord(
+            id=1,
+            name="db-disabled",
+            group_a_chat_id=-100111,
+            group_b_chat_id=-100222,
+            bidirectional=True,
+            enabled=False,
+            filters=PairFilters(
+                types_allow=["text"],
+                keywords_block=[],
+                keywords_allow=[],
+            ),
+        )
+    ]
+
+    with patch("bot.handlers.message.forward_message", new_callable=AsyncMock) as mock_fwd:
+        with patch("bot.handlers.message.resolve_display_name", return_value="Tester"):
+            await handle_message(
+                update,
+                context,
+                config=config,
+                store=store,
+                stats=stats,
+                reply_map=reply_map,
+                config_store=config_store,
+            )
+
+    mock_fwd.assert_not_called()
+    stats.increment.assert_not_called()

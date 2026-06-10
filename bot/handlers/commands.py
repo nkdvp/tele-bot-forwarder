@@ -23,6 +23,15 @@ def _find_pair_raw(config: Config, pair_name: str) -> dict | None:
     return None
 
 
+async def _mutation_guard(update: Update, allow_mutations: bool) -> bool:
+    if allow_mutations:
+        return True
+    await update.message.reply_text(
+        "Runtime config mutations are disabled in DB mode. Use the web admin for changes."
+    )
+    return False
+
+
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
     if not _is_admin(update.effective_user.id, config):
         return
@@ -40,8 +49,15 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE, config:
     await update.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 
-async def cmd_enable(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_enable(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     if not context.args:
         await update.message.reply_text("Usage: /enable <pair-name>")
@@ -59,8 +75,15 @@ async def cmd_enable(update: Update, context: ContextTypes.DEFAULT_TYPE, config:
     await update.message.reply_text(f"Pair '{pair_name}' enabled.")
 
 
-async def cmd_disable(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_disable(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     if not context.args:
         await update.message.reply_text("Usage: /disable <pair-name>")
@@ -78,7 +101,12 @@ async def cmd_disable(update: Update, context: ContextTypes.DEFAULT_TYPE, config
     await update.message.reply_text(f"Pair '{pair_name}' disabled.")
 
 
-async def cmd_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_filter(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     """
     Usage:
       /filter <pair> block type <type>
@@ -88,6 +116,8 @@ async def cmd_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, config:
       /filter <pair> remove keyword <word>
     """
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     args = context.args
     if len(args) < 4:
@@ -132,11 +162,18 @@ async def cmd_filter(update: Update, context: ContextTypes.DEFAULT_TYPE, config:
     await update.message.reply_text(f"Filter updated for '{pair_name}'.")
 
 
-async def cmd_mask(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_mask(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     """
     Usage: /mask <pair> <a_to_b|b_to_a|global> <user_id> <alias|anon>
     """
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     args = context.args
     if len(args) < 4:
@@ -172,11 +209,18 @@ async def cmd_mask(update: Update, context: ContextTypes.DEFAULT_TYPE, config: C
     await update.message.reply_text(f"User {user_id} will now appear as {label}.")
 
 
-async def cmd_unmask(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_unmask(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     """
     Usage: /unmask <pair> <a_to_b|b_to_a|global> <user_id>
     """
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     args = context.args
     if len(args) < 3:
@@ -206,13 +250,20 @@ async def cmd_unmask(update: Update, context: ContextTypes.DEFAULT_TYPE, config:
     await update.message.reply_text(f"Masking removed for user {user_id}.")
 
 
-async def cmd_set(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_set(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     """
     Usage:
       /set recovery_window <minutes>
       /set alert_chat <chat_id>
     """
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     args = context.args
     if len(args) < 2:
@@ -245,13 +296,20 @@ async def cmd_set(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Co
         await update.message.reply_text("Unknown key. Available: recovery_window, alert_chat")
 
 
-async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_admin(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     """
     Usage:
       /admin add <user_id>
       /admin remove <user_id>
     """
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     args = context.args
     if not args or args[0] not in ("add", "remove"):
@@ -296,13 +354,20 @@ async def cmd_admin(update: Update, context: ContextTypes.DEFAULT_TYPE, config: 
 _DEFAULT_PAIR_TYPES = ["text", "photo", "video", "sticker", "document", "voice", "animation"]
 
 
-async def cmd_pair(update: Update, context: ContextTypes.DEFAULT_TYPE, config: Config) -> None:
+async def cmd_pair(
+    update: Update,
+    context: ContextTypes.DEFAULT_TYPE,
+    config: Config,
+    allow_mutations: bool = True,
+) -> None:
     """
     Usage:
       /pair add <name> <group_a_id> <group_b_id> [true|false]
       /pair remove <name>
     """
     if not _is_admin(update.effective_user.id, config):
+        return
+    if not await _mutation_guard(update, allow_mutations):
         return
     args = context.args
     if not args or args[0] not in ("add", "remove"):

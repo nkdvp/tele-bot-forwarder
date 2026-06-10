@@ -174,6 +174,24 @@ async def test_pair_add_valid(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_pair_add_blocked_in_read_only_mode(tmp_path, monkeypatch):
+    from bot.handlers.commands import cmd_pair
+    config, path = _cfg(tmp_path)
+    monkeypatch.setattr("bot.handlers.commands.CONFIG_PATH", path)
+    u = _update(111)
+    await cmd_pair(
+        u,
+        _ctx("add", "new-pair", "-100333", "-100444"),
+        config=config,
+        allow_mutations=False,
+    )
+    names = [p.name for p in config.pairs]
+    assert "new-pair" not in names
+    u.message.reply_text.assert_called_once()
+    assert "web admin" in u.message.reply_text.call_args[0][0].lower()
+
+
+@pytest.mark.asyncio
 async def test_pair_add_bidirectional_false(tmp_path, monkeypatch):
     from bot.handlers.commands import cmd_pair
     config, path = _cfg(tmp_path)

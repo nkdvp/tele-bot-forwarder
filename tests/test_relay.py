@@ -2,6 +2,8 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 from bot.forwarder.relay import forward_message
 from bot.reply_map import ReplyMap
+from bot.storage.reply_link_store import SQLiteReplyLinkStore
+from bot.storage.sqlite_db import initialize_database
 from bot.config.loader import Config, GlobalMaskingConfig, PairMaskingConfig, PairConfig, FilterConfig
 
 
@@ -209,3 +211,19 @@ async def test_voice_reply_to_id_on_header_media_recorded(tmp_path):
     assert header_kwargs["reply_to_message_id"] == 77
     # voice media message_id is recorded
     assert reply_map.lookup(-100111, 51) == (-100222, 88)
+
+
+@pytest.mark.asyncio
+async def test_records_reply_links_with_sqlite_store(tmp_path):
+    config = _make_config(strip_mentions=False)
+    db_path = str(tmp_path / "forwarder.db")
+    initialize_database(db_path)
+    reply_map = SQLiteReplyLinkStore(db_path)
+
+    msg = _make_message(text="hello", chat_id=-100111, msg_id=42)
+    context = _make_context(sent_msg_id=88)
+
+    await forward_message(msg, "Alice", -100222, context, reply_map, config)
+
+    assert reply_map.lookup(-100111, 42) == (-100222, 88)
+    assert reply_map.lookup(-100222, 88) == (-100111, 42)

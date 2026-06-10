@@ -35,7 +35,7 @@ source venv/bin/activate
 pip install -r requirements.txt
 
 cp .env.example .env
-# Edit .env — set BOT_TOKEN and optionally HEALTH_PORT
+# Edit .env — set BOT_TOKEN and any optional DB/admin settings
 ```
 
 Edit `config.yaml`:
@@ -76,6 +76,42 @@ pairs:
 ```bash
 source venv/bin/activate
 python main.py
+```
+
+### Recommended `.env`-driven run (no manual `export`)
+
+Put your runtime settings in `.env` (already loaded by `main.py`):
+
+```env
+BOT_TOKEN=...
+HEALTH_PORT=8080
+USE_DB_CONFIG=true
+DB_PATH=data/forwarder.db
+ADMIN_PORT=8090
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=change-me
+```
+
+Then run normally:
+
+```bash
+source venv/bin/activate
+python main.py
+```
+
+If `USE_DB_CONFIG=true`, run migration once first:
+
+```bash
+python -m bot.storage.db_migration \
+  --config config.yaml \
+  --reply-map data/reply_map.json \
+  --db data/forwarder.db \
+  --dry-run
+
+python -m bot.storage.db_migration \
+  --config config.yaml \
+  --reply-map data/reply_map.json \
+  --db data/forwarder.db
 ```
 
 On first start the bot registers its command menu with Telegram — type `/` in any chat with the bot to see all available commands.
