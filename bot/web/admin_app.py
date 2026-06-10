@@ -218,6 +218,15 @@ def _list_backups(backup_dir: str) -> list[dict]:
     return result
 
 
+async def backups_page(request: web.Request) -> web.Response:
+    backup_dir = request.app[BACKUP_DIR_KEY]
+    return aiohttp_jinja2.render_template("backups.html", request, {
+        "active_page": "backups",
+        "user": request["user"],
+        "backups": _list_backups(backup_dir),
+    })
+
+
 async def pairs_page(request: web.Request) -> web.Response:
     store = request.app[CONFIG_STORE_KEY]
     q = request.query.get("q")
@@ -441,6 +450,7 @@ def create_admin_app(
     app.router.add_static("/static/", path=str(Path(__file__).parent / "static"), name="static")
     app.router.add_get("/", index_handler)
     app.router.add_get("/dashboard", dashboard_page)
+    app.router.add_get("/backups", backups_page)
     app.router.add_get("/login", login_page)
     app.router.add_post("/login", post_login)
     app.router.add_post("/api/login", api_login)

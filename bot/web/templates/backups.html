@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}Backups{% endblock %}
+{% block page_title %}Backups{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div></div>
+  <button id="backup-btn" class="btn btn-primary">Create backup now</button>
+</div>
+
+<div id="backup-message"></div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Filename</th>
+        <th>Size</th>
+        <th>Created</th>
+      </tr>
+    </thead>
+    <tbody id="backup-table-body">
+      {% for backup in backups %}
+      <tr>
+        <td>{{ backup.name }}</td>
+        <td class="file-size">{{ backup.size }}</td>
+        <td class="td-muted">{{ backup.created_at }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3">
+          <div class="empty-state">
+            <p>No backups yet. Use the button above to create your first backup.</p>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

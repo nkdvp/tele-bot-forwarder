@@ -376,3 +376,35 @@ async def test_pair_form_submit_creates_pair_and_redirects(tmp_path):
         assert "spam" in pair.filters.keywords_block
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_backups_page_renders_html(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        await _login(client)
+
+        # Create a backup file so the table has a row
+        backup_dir = tmp_path / "backups"
+        backup_dir.mkdir()
+        (backup_dir / "forwarder-20260610-120000.db").write_bytes(b"x" * 2048)
+
+        resp = await client.get("/backups")
+        assert resp.status == 200
+        assert "text/html" in resp.content_type
+        body = await resp.text()
+        assert "Backups" in body
+        assert "forwarder-20260610-120000.db" in body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_backups_requires_auth(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        resp = await client.get("/backups", allow_redirects=False)
+        assert resp.status == 302
+        assert resp.headers["Location"] == "/login"
+    finally:
+        await client.close()
