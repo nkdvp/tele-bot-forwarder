@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import asdict
+from datetime import datetime
 import json
+from pathlib import Path
 from typing import Any
 
+import aiohttp_jinja2
+import jinja2
 from aiohttp import web
 
 from bot.storage.auth_store import AuthStore, verify_password
@@ -17,6 +21,7 @@ CONFIG_STORE_KEY: web.AppKey[SQLiteConfigStore] = web.AppKey("config_store")
 AUTH_STORE_KEY: web.AppKey[AuthStore] = web.AppKey("auth_store")
 BACKUP_DIR_KEY: web.AppKey[str] = web.AppKey("backup_dir")
 BACKUP_RETENTION_DAYS_KEY: web.AppKey[int] = web.AppKey("backup_retention_days")
+STATS_PATH_KEY: web.AppKey[str] = web.AppKey("stats_path")
 
 
 def _to_bool(raw: str | None, *, default: bool = False) -> bool:
@@ -382,6 +387,7 @@ def create_admin_app(
     auth_store: AuthStore,
     backup_dir: str = "backups",
     backup_retention_days: int = 30,
+    stats_path: str = "data/stats.json",
 ) -> web.Application:
     app = web.Application(middlewares=[auth_middleware])
     app[DB_PATH_KEY] = db_path
@@ -389,7 +395,14 @@ def create_admin_app(
     app[AUTH_STORE_KEY] = auth_store
     app[BACKUP_DIR_KEY] = backup_dir
     app[BACKUP_RETENTION_DAYS_KEY] = backup_retention_days
+    app[STATS_PATH_KEY] = stats_path
 
+    aiohttp_jinja2.setup(
+        app,
+        loader=jinja2.FileSystemLoader(str(Path(__file__).parent / "templates")),
+    )
+
+    app.router.add_static("/static/", path=str(Path(__file__).parent / "static"), name="static")
     app.router.add_get("/", index_handler)
     app.router.add_get("/login", login_page)
     app.router.add_post("/api/login", api_login)
