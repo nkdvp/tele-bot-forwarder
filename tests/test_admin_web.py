@@ -307,3 +307,72 @@ async def test_pairs_page_renders_pairs(tmp_path):
         assert "Pairs" in body
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pair_create_page_renders_form(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        resp = await client.get("/pairs/new")
+        assert resp.status == 200
+        assert "text/html" in resp.content_type
+        body = await resp.text()
+        assert "New Pair" in body
+        assert "Group A Chat ID" in body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pair_edit_page_renders_existing_values(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        store = SQLiteConfigStore(db_path)
+        store.create_pair(PairRecord(
+            id=None, name="edit-me",
+            group_a_chat_id=-100111, group_b_chat_id=-100222,
+            bidirectional=False, enabled=True,
+            filters=PairFilters(types_allow=["text"], keywords_block=["spam"], keywords_allow=[]),
+        ))
+
+        resp = await client.get("/pairs/edit-me/edit")
+        assert resp.status == 200
+        body = await resp.text()
+        assert "edit-me" in body
+        assert "-100111" in body
+        assert "spam" in body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_pair_form_submit_creates_pair_and_redirects(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        resp = await client.post(
+            "/pairs/new",
+            data={
+                "name": "form-pair",
+                "group_a_chat_id": "-100111",
+                "group_b_chat_id": "-100222",
+                "bidirectional": "true",
+                "enabled": "true",
+                "types_allow": ["text", "photo"],
+                "keywords_block": "spam, ads",
+                "keywords_allow": "",
+            },
+            allow_redirects=False,
+        )
+        assert resp.status == 302
+        assert resp.headers["Location"] == "/pairs"
+        store = SQLiteConfigStore(db_path)
+        pair = store.get_pair_by_name("form-pair")
+        assert pair is not None
+        assert pair.group_a_chat_id == -100111
+        assert "photo" in pair.filters.types_allow
+        assert "spam" in pair.filters.keywords_block
+    finally:
+        await client.close()

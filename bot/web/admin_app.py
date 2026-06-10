@@ -241,50 +241,14 @@ async def pairs_page(request: web.Request) -> web.Response:
     })
 
 
-def _pair_form_html(pair: PairRecord | None = None) -> str:
-    if pair is None:
-        name = ""
-        group_a = ""
-        group_b = ""
-        bidirectional = True
-        enabled = True
-        types_allow = "text,photo,video,sticker,document,voice,animation"
-        keywords_block = ""
-        keywords_allow = ""
-    else:
-        name = pair.name
-        group_a = str(pair.group_a_chat_id)
-        group_b = str(pair.group_b_chat_id)
-        bidirectional = pair.bidirectional
-        enabled = pair.enabled
-        types_allow = ",".join(pair.filters.types_allow)
-        keywords_block = ",".join(pair.filters.keywords_block)
-        keywords_allow = ",".join(pair.filters.keywords_allow)
 
-    return f"""
-      <label>Name <input name="name" value="{name}" /></label><br/>
-      <label>Group A <input name="group_a_chat_id" value="{group_a}" /></label><br/>
-      <label>Group B <input name="group_b_chat_id" value="{group_b}" /></label><br/>
-      <label>Bidirectional <input name="bidirectional" value="{str(bidirectional).lower()}" /></label><br/>
-      <label>Enabled <input name="enabled" value="{str(enabled).lower()}" /></label><br/>
-      <label>Types allow (csv) <input name="types_allow" value="{types_allow}" /></label><br/>
-      <label>Keywords block (csv) <input name="keywords_block" value="{keywords_block}" /></label><br/>
-      <label>Keywords allow (csv) <input name="keywords_allow" value="{keywords_allow}" /></label><br/>
-    """
-
-
-async def pair_create_page(_: web.Request) -> web.Response:
-    html = f"""
-    <html><body>
-      <h1>Create Pair</h1>
-      <form method="post" action="/pairs/new">
-        {_pair_form_html(None)}
-        <button type="submit">Create</button>
-      </form>
-      <p><a href="/pairs">Back</a></p>
-    </body></html>
-    """
-    return web.Response(text=html, content_type="text/html")
+async def pair_create_page(request: web.Request) -> web.Response:
+    return aiohttp_jinja2.render_template("pair_form.html", request, {
+        "active_page": "pairs",
+        "user": request["user"],
+        "pair": None,
+        "error": None,
+    })
 
 
 async def pair_edit_page(request: web.Request) -> web.StreamResponse:
@@ -293,28 +257,24 @@ async def pair_edit_page(request: web.Request) -> web.StreamResponse:
     pair = store.get_pair_by_name(name)
     if pair is None:
         return web.Response(status=404, text="pair not found")
-    html = f"""
-    <html><body>
-      <h1>Edit Pair: {pair.name}</h1>
-      <form method="post" action="/pairs/{pair.name}/edit">
-        {_pair_form_html(pair)}
-        <button type="submit">Save</button>
-      </form>
-      <p><a href="/pairs">Back</a></p>
-    </body></html>
-    """
-    return web.Response(text=html, content_type="text/html")
+    return aiohttp_jinja2.render_template("pair_form.html", request, {
+        "active_page": "pairs",
+        "user": request["user"],
+        "pair": pair,
+        "error": None,
+    })
 
 
-def _pair_payload_from_form(form: dict[str, str]) -> dict[str, Any]:
+def _pair_payload_from_form(form) -> dict[str, Any]:
+    types_allow = form.getall("types_allow", []) or ["text"]
     return {
         "name": form.get("name"),
         "group_a_chat_id": form.get("group_a_chat_id"),
         "group_b_chat_id": form.get("group_b_chat_id"),
-        "bidirectional": _to_bool(form.get("bidirectional"), default=True),
-        "enabled": _to_bool(form.get("enabled"), default=True),
+        "bidirectional": _to_bool(form.get("bidirectional"), default=False),
+        "enabled": _to_bool(form.get("enabled"), default=False),
         "filters": {
-            "types_allow": _split_csv(form.get("types_allow", "")) or ["text"],
+            "types_allow": list(types_allow),
             "keywords_block": _split_csv(form.get("keywords_block", "")),
             "keywords_allow": _split_csv(form.get("keywords_allow", "")),
         },
@@ -325,11 +285,16 @@ async def pair_create_submit(request: web.Request) -> web.StreamResponse:
     store = request.app[CONFIG_STORE_KEY]
     form = await request.post()
     payload = _pair_payload_from_form(form)
-    pair = _pair_from_payload(payload)
     try:
+        pair = _pair_from_payload(payload)
         store.create_pair(pair)
     except ValueError as exc:
-        return web.Response(status=400, text=str(exc))
+        return aiohttp_jinja2.render_template("pair_form.html", request, {
+            "active_page": "pairs",
+            "user": request["user"],
+            "pair": None,
+            "error": str(exc),
+        })
     raise web.HTTPFound("/pairs")
 
 
@@ -341,11 +306,16 @@ async def pair_edit_submit(request: web.Request) -> web.StreamResponse:
         return web.Response(status=404, text="pair not found")
     form = await request.post()
     payload = _pair_payload_from_form(form)
-    updated = _pair_from_payload(payload, pair_id=existing.id)
     try:
+        updated = _pair_from_payload(payload, pair_id=existing.id)
         store.update_pair(updated)
     except ValueError as exc:
-        return web.Response(status=400, text=str(exc))
+        return aiohttp_jinja2.render_template("pair_form.html", request, {
+            "active_page": "pairs",
+            "user": request["user"],
+            "pair": existing,
+            "error": str(exc),
+        })
     raise web.HTTPFound("/pairs")
 
 

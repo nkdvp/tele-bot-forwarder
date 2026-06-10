@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit" if pair else "New" }} Pair{% endblock %}
+{% block page_title %}{{ "Edit" if pair else "New" }} Pair{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="max-width:640px">
+  <form method="post" action="{{ '/pairs/' + pair.name + '/edit' if pair else '/pairs/new' }}">
+
+    <div class="form-group">
+      <label class="form-label" for="name">Pair Name</label>
+      <input class="form-input" type="text" id="name" name="name"
+             value="{{ pair.name if pair else '' }}"
+             {% if pair %}readonly{% endif %}
+             placeholder="e.g. customer-internal" required />
+      {% if pair %}
+        <div class="form-hint">Name cannot be changed after creation.</div>
+      {% endif %}
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="form-group">
+        <label class="form-label" for="group_a_chat_id">Group A Chat ID</label>
+        <input class="form-input" type="number" id="group_a_chat_id" name="group_a_chat_id"
+               value="{{ pair.group_a_chat_id if pair else '' }}"
+               placeholder="-1001234567890" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="group_b_chat_id">Group B Chat ID</label>
+        <input class="form-input" type="number" id="group_b_chat_id" name="group_b_chat_id"
+               value="{{ pair.group_b_chat_id if pair else '' }}"
+               placeholder="-1009876543210" required />
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div class="form-group">
+        <label class="form-label">Bidirectional</label>
+        <div class="toggle-wrapper">
+          <label class="toggle">
+            <input type="checkbox" name="bidirectional" value="true"
+                   {% if pair is none or pair.bidirectional %}checked{% endif %} />
+            <span class="toggle-track"></span>
+          </label>
+          <span style="font-size:13px;color:var(--text-muted)">Forward both ways</span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Enabled</label>
+        <div class="toggle-wrapper">
+          <label class="toggle">
+            <input type="checkbox" name="enabled" value="true"
+                   {% if pair is none or pair.enabled %}checked{% endif %} />
+            <span class="toggle-track"></span>
+          </label>
+          <span style="font-size:13px;color:var(--text-muted)">Active forwarding</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Allowed Message Types</label>
+      <div class="checkbox-group">
+        {% set allowed_types = pair.filters.types_allow if pair else ["text","photo","video","sticker","document","voice","animation"] %}
+        {% for t in ["text","photo","video","sticker","document","voice","animation"] %}
+        <label class="checkbox-item">
+          <input type="checkbox" name="types_allow" value="{{ t }}"
+                 {% if t in allowed_types %}checked{% endif %} />
+          {{ t }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="keywords_block">Keywords — Block List</label>
+      <textarea class="form-textarea" id="keywords_block" name="keywords_block"
+                placeholder="spam, ads, promo">{{ pair.filters.keywords_block | join(", ") if pair else "" }}</textarea>
+      <div class="form-hint">Comma-separated. Messages containing these words are blocked.</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" for="keywords_allow">Keywords — Allow List</label>
+      <textarea class="form-textarea" id="keywords_allow" name="keywords_allow"
+                placeholder="Leave empty to allow all">{{ pair.filters.keywords_allow | join(", ") if pair else "" }}</textarea>
+      <div class="form-hint">Comma-separated. If non-empty, only messages with these words pass.</div>
+    </div>
+
+    <div style="display:flex;gap:12px;margin-top:8px">
+      <button type="submit" class="btn btn-primary">
+        {{ "Save changes" if pair else "Create pair" }}
+      </button>
+      <a href="/pairs" class="btn btn-ghost">Cancel</a>
+    </div>
+
+  </form>
+</div>
+{% endblock %}
