@@ -102,18 +102,26 @@ async def index_handler(_: web.Request) -> web.StreamResponse:
     raise web.HTTPFound("/pairs")
 
 
-async def login_page(_: web.Request) -> web.Response:
-    html = """
-    <html><body>
-      <h1>Admin Login</h1>
-      <form method="post" action="/api/login">
-        <label>Username <input name="username" /></label><br/>
-        <label>Password <input type="password" name="password" /></label><br/>
-        <button type="submit">Login</button>
-      </form>
-    </body></html>
-    """
-    return web.Response(text=html, content_type="text/html")
+async def login_page(request: web.Request) -> web.Response:
+    return aiohttp_jinja2.render_template("login.html", request, {"error": None})
+
+
+async def post_login(request: web.Request) -> web.StreamResponse:
+    auth_store = request.app[AUTH_STORE_KEY]
+    form = await request.post()
+    username = str(form.get("username", "")).strip()
+    password = str(form.get("password", ""))
+
+    user = auth_store.get_user_by_username(username)
+    if user is None or not user.is_active or not verify_password(password, user.password_hash):
+        return aiohttp_jinja2.render_template(
+            "login.html", request, {"error": "Invalid username or password"}
+        )
+
+    session_id = auth_store.create_session(user.id)
+    response = web.HTTPFound("/dashboard")
+    response.set_cookie(SESSION_COOKIE, session_id, httponly=True, samesite="Lax")
+    return response
 
 
 async def api_login(request: web.Request) -> web.StreamResponse:
@@ -428,6 +436,7 @@ def create_admin_app(
     app.router.add_static("/static/", path=str(Path(__file__).parent / "static"), name="static")
     app.router.add_get("/", index_handler)
     app.router.add_get("/login", login_page)
+    app.router.add_post("/login", post_login)
     app.router.add_post("/api/login", api_login)
     app.router.add_post("/api/logout", api_logout)
     app.router.add_get("/pairs", pairs_page)

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login — Luna Admin</title>
+  <link rel="stylesheet" href="/static/luna.css" />
+</head>
+<body class="login-page">
+  <div class="login-card">
+    <div class="login-logo">
+      <svg width="32" height="32" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 2C7.373 2 2 7.373 2 14s5.373 12 12 12c1.354 0 2.658-.225 3.875-.637C14.13 23.88 11 19.35 11 14c0-5.35 3.13-9.88 6.875-11.363A11.956 11.956 0 0014 2z" fill="#06b6d4"/>
+      </svg>
+      <span>Luna</span>
+    </div>
+    <p class="login-subtitle">Admin Dashboard</p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input class="form-input" type="text" id="username" name="username"
+               autocomplete="username" autofocus required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-input" type="password" id="password" name="password"
+               autocomplete="current-password" required />
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;">
+        Sign in
+      </button>
+    </form>
+  </div>
+</body>
+</html>

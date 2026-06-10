@@ -202,3 +202,47 @@ async def test_api_stats_returns_zeros_when_no_stats_file(tmp_path):
         assert data["week"] == 0
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_login_page_renders_html(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        resp = await client.get("/login")
+        assert resp.status == 200
+        assert "text/html" in resp.content_type
+        body = await resp.text()
+        assert "Luna" in body
+        assert "Sign in" in body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_login_valid_credentials_redirects(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        resp = await client.post(
+            "/login",
+            data={"username": "admin", "password": "secret"},
+            allow_redirects=False,
+        )
+        assert resp.status == 302
+        assert resp.headers["Location"] == "/dashboard"
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_post_login_invalid_credentials_shows_error(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        resp = await client.post(
+            "/login",
+            data={"username": "admin", "password": "wrong"},
+        )
+        assert resp.status == 200
+        body = await resp.text()
+        assert "Invalid" in body
+    finally:
+        await client.close()

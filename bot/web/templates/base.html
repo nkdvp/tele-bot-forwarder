@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}Luna{% endblock %} — Luna Admin</title>
+  <link rel="stylesheet" href="/static/luna.css" />
+</head>
+<body>
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M14 2C7.373 2 2 7.373 2 14s5.373 12 12 12c1.354 0 2.658-.225 3.875-.637C14.13 23.88 11 19.35 11 14c0-5.35 3.13-9.88 6.875-11.363A11.956 11.956 0 0014 2z" fill="#06b6d4"/>
+      </svg>
+      <span>Luna</span>
+    </div>
+    <ul class="sidebar-nav">
+      <li>
+        <a href="/dashboard" class="{% if active_page == 'dashboard' %}active{% endif %}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+            <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+          </svg>
+          Dashboard
+        </a>
+      </li>
+      <li>
+        <a href="/pairs" class="{% if active_page == 'pairs' %}active{% endif %}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/>
+            <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
+          </svg>
+          Pairs
+        </a>
+      </li>
+      <li>
+        <a href="/backups" class="{% if active_page == 'backups' %}active{% endif %}">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+            <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+          </svg>
+          Backups
+        </a>
+      </li>
+    </ul>
+  </nav>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
+      <div class="topbar-right">
+        <span class="username">{{ user.username }}</span>
+        <form method="post" action="/api/logout" class="inline">
+          <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+        </form>
+      </div>
+    </header>
+    <main class="content">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <script src="/static/luna.js"></script>
+</body>
+</html>
