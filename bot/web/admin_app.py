@@ -231,7 +231,10 @@ async def pairs_page(request: web.Request) -> web.Response:
     store = request.app[CONFIG_STORE_KEY]
     q = request.query.get("q")
     chat_raw = request.query.get("chat_id")
-    chat_id = int(chat_raw) if chat_raw else None
+    try:
+        chat_id = int(chat_raw) if chat_raw else None
+    except ValueError:
+        chat_id = None
     enabled_raw = request.query.get("enabled")
     bidir_raw = request.query.get("bidirectional")
     enabled = None if enabled_raw is None or enabled_raw == "" else _to_bool(enabled_raw)
@@ -315,6 +318,7 @@ async def pair_edit_submit(request: web.Request) -> web.StreamResponse:
         return web.Response(status=404, text="pair not found")
     form = await request.post()
     payload = _pair_payload_from_form(form)
+    payload["name"] = old_name
     try:
         updated = _pair_from_payload(payload, pair_id=existing.id)
         store.update_pair(updated)
@@ -338,7 +342,10 @@ async def api_list_pairs(request: web.Request) -> web.Response:
     store = request.app[CONFIG_STORE_KEY]
     q = request.query.get("q")
     chat_raw = request.query.get("chat_id")
-    chat_id = int(chat_raw) if chat_raw else None
+    try:
+        chat_id = int(chat_raw) if chat_raw else None
+    except ValueError:
+        chat_id = None
     enabled_raw = request.query.get("enabled")
     bidir_raw = request.query.get("bidirectional")
     enabled = None if enabled_raw is None else _to_bool(enabled_raw)
@@ -355,8 +362,8 @@ async def api_list_pairs(request: web.Request) -> web.Response:
 async def api_create_pair(request: web.Request) -> web.Response:
     store = request.app[CONFIG_STORE_KEY]
     payload = await request.json()
-    pair = _pair_from_payload(payload)
     try:
+        pair = _pair_from_payload(payload)
         created = store.create_pair(pair)
     except ValueError as exc:
         return web.json_response({"error": str(exc)}, status=400)
