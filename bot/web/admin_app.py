@@ -121,7 +121,7 @@ async def post_login(request: web.Request) -> web.StreamResponse:
     session_id = auth_store.create_session(user.id)
     response = web.HTTPFound("/dashboard")
     response.set_cookie(SESSION_COOKIE, session_id, httponly=True, samesite="Lax")
-    return response
+    raise response
 
 
 async def api_login(request: web.Request) -> web.StreamResponse:
