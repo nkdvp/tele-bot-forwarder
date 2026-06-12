@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Users{% endblock %}
+{% block page_title %}Users{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:24px">
+  <form method="post" action="/users">
+    <div class="inline-grid">
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input class="form-input" id="username" name="username" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input class="form-input" id="password" name="password" type="password" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="global_role">Global Role</label>
+        <select class="form-select" id="global_role" name="global_role">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+          {% if can_grant_super_admin %}
+          <option value="super_admin">Super admin</option>
+          {% endif %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Active</label>
+        <div class="toggle-wrapper">
+          <label class="toggle">
+            <input type="checkbox" name="is_active" value="true" checked />
+            <span class="toggle-track"></span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Create user</button>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Reset Password</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in users %}
+      <tr>
+        <td><strong>{{ row.username }}</strong></td>
+        <td>
+          <form method="post" action="/users/{{ row.id }}/edit" class="inline">
+            <select class="form-select" name="global_role" style="width:140px">
+              {% for role in ["user", "admin", "super_admin"] %}
+                {% if role != "super_admin" or can_grant_super_admin %}
+                <option value="{{ role }}" {% if row.global_role == role %}selected{% endif %}>{{ role }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+        </td>
+        <td>
+            <label class="toggle" title="Active">
+              <input type="checkbox" name="is_active" value="true" {% if row.is_active %}checked{% endif %} />
+              <span class="toggle-track"></span>
+            </label>
+        </td>
+        <td>
+            <input class="form-input" type="password" name="password" placeholder="Leave unchanged" />
+        </td>
+        <td>
+            {% set can_manage_row = can_grant_super_admin or row.global_role != "super_admin" %}
+            {% if can_manage_row %}
+            <button class="btn btn-primary btn-sm" type="submit">Save</button>
+            {% endif %}
+          </form>
+          {% if can_manage_row and row.id != user.id %}
+          <form method="post" action="/users/{{ row.id }}/delete" class="inline">
+            <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

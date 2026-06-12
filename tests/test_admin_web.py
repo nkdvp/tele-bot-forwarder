@@ -5,7 +5,8 @@ import pytest
 from aiohttp.test_utils import TestClient, TestServer
 
 from bot.storage.auth_store import AuthStore
-from bot.storage.config_store import PairFilters, PairRecord, SQLiteConfigStore
+from bot.storage.access_store import AccessStore
+from bot.storage.config_store import PairFilters, PairMaskRule, PairRecord, SQLiteConfigStore
 from bot.storage.sqlite_db import initialize_database
 from bot.web.admin_app import create_admin_app
 
@@ -108,7 +109,7 @@ async def test_pair_crud_and_search_via_api(tmp_path):
                 "enabled": False,
                 "group_a_chat_id": -100111,
                 "group_b_chat_id": -100333,
-                "bidirectional": False,
+                "bidirectional": True,
                 "filters": {
                     "types_allow": ["text"],
                     "keywords_block": [],
@@ -118,10 +119,45 @@ async def test_pair_crud_and_search_via_api(tmp_path):
         )
         assert update_resp.status == 200
 
-        filtered = await client.get("/api/pairs?enabled=false&bidirectional=false")
+        filtered = await client.get("/api/pairs?enabled=false&bidirectional=true")
         payload = await filtered.json()
         assert len(payload["pairs"]) == 1
         assert payload["pairs"][0]["enabled"] is False
+
+        one_way_update = await client.put(
+            "/api/pairs/customer-internal",
+            json={
+                "enabled": True,
+                "group_a_chat_id": -100111,
+                "group_b_chat_id": -100333,
+                "bidirectional": False,
+                "filters": {
+                    "types_allow": ["text"],
+                    "keywords_block": [],
+                    "keywords_allow": [],
+                },
+            },
+        )
+        assert one_way_update.status == 400
+
+        one_way_create = await client.post(
+            "/api/pairs",
+            json={
+                "name": "one-way-not-allowed",
+                "group_a_chat_id": -1009911,
+                "group_b_chat_id": -1009922,
+                "bidirectional": False,
+                "enabled": True,
+                "filters": {
+                    "types_allow": ["text"],
+                    "keywords_block": [],
+                    "keywords_allow": [],
+                },
+            },
+        )
+        assert one_way_create.status == 400
+        one_way_payload = await one_way_create.json()
+        assert "one-way pairs are currently disabled" in one_way_payload["error"]
 
         delete_resp = await client.delete("/api/pairs/customer-internal")
         assert delete_resp.status == 200
@@ -320,6 +356,7 @@ async def test_pair_create_page_renders_form(tmp_path):
         body = await resp.text()
         assert "New Pair" in body
         assert "Group A Chat ID" in body
+        assert "Bidirectional is required by current policy." in body
     finally:
         await client.close()
 
@@ -379,6 +416,33 @@ async def test_pair_form_submit_creates_pair_and_redirects(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_pair_form_defaults_to_bidirectional_when_checkbox_missing(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        resp = await client.post(
+            "/pairs/new",
+            data={
+                "name": "default-bidi",
+                "group_a_chat_id": "-1001711",
+                "group_b_chat_id": "-1001712",
+                "enabled": "true",
+                "types_allow": ["text"],
+                "keywords_block": "",
+                "keywords_allow": "",
+            },
+            allow_redirects=False,
+        )
+        assert resp.status == 302
+        store = SQLiteConfigStore(db_path)
+        pair = store.get_pair_by_name("default-bidi")
+        assert pair is not None
+        assert pair.bidirectional is True
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_backups_page_renders_html(tmp_path):
     client, db_path = await _make_client(tmp_path)
     try:
@@ -406,5 +470,371 @@ async def test_backups_requires_auth(tmp_path):
         resp = await client.get("/backups", allow_redirects=False)
         assert resp.status == 302
         assert resp.headers["Location"] == "/login"
+    finally:
+        await client.close()
+
+
+async def _login_as(client: TestClient, username: str, password: str) -> None:
+    resp = await client.post(
+        "/api/login",
+        json={"username": username, "password": password},
+    )
+    assert resp.status == 200
+    await resp.json()
+
+
+def _seed_rbac_fixture(db_path: str) -> dict[str, int]:
+    auth_store = AuthStore(db_path)
+    access_store = AccessStore(db_path)
+    config_store = SQLiteConfigStore(db_path)
+
+    manager = auth_store.create_user(username="manager", password="pw-manager", global_role="user")
+    viewer = auth_store.create_user(username="viewer", password="pw-viewer", global_role="user")
+    outsider = auth_store.create_user(username="outsider", password="pw-outsider", global_role="user")
+    second_admin = auth_store.create_user(username="admin2", password="pw-admin2", global_role="admin")
+
+    team_a = access_store.create_team("Team A")
+    team_b = access_store.create_team("Team B")
+    access_store.upsert_team_member(team_id=team_a.id, user_id=manager.id, role="manager")
+    access_store.upsert_team_member(team_id=team_a.id, user_id=viewer.id, role="viewer")
+    access_store.upsert_team_member(team_id=team_b.id, user_id=outsider.id, role="owner")
+
+    pair_a = config_store.create_pair(PairRecord(
+        id=None,
+        name="pair-a",
+        group_a_chat_id=-1001001,
+        group_b_chat_id=-1001002,
+        bidirectional=True,
+        enabled=True,
+        filters=PairFilters(types_allow=["text"], keywords_block=[], keywords_allow=[]),
+        team_id=team_a.id,
+        created_by_user_id=manager.id,
+    ))
+    pair_b = config_store.create_pair(PairRecord(
+        id=None,
+        name="pair-b",
+        group_a_chat_id=-1002001,
+        group_b_chat_id=-1002002,
+        bidirectional=True,
+        enabled=True,
+        filters=PairFilters(types_allow=["text"], keywords_block=[], keywords_allow=[]),
+        team_id=team_b.id,
+        created_by_user_id=outsider.id,
+    ))
+
+    return {
+        "manager_id": manager.id,
+        "viewer_id": viewer.id,
+        "outsider_id": outsider.id,
+        "admin2_id": second_admin.id,
+        "team_a_id": team_a.id,
+        "team_b_id": team_b.id,
+        "pair_a_id": pair_a.id or 0,
+        "pair_b_id": pair_b.id or 0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_rbac_team_scoping_and_super_admin_visibility(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        _seed_rbac_fixture(db_path)
+
+        await _login_as(client, "admin", "secret")
+        admin_pairs = await client.get("/api/pairs")
+        admin_payload = await admin_pairs.json()
+        assert {p["name"] for p in admin_payload["pairs"]} >= {"pair-a", "pair-b"}
+        await client.post("/api/logout")
+
+        await _login_as(client, "viewer", "pw-viewer")
+        viewer_pairs = await client.get("/api/pairs")
+        viewer_payload = await viewer_pairs.json()
+        assert [p["name"] for p in viewer_payload["pairs"]] == ["pair-a"]
+        await client.post("/api/logout")
+
+        await _login_as(client, "admin2", "pw-admin2")
+        admin2_pairs = await client.get("/api/pairs")
+        admin2_payload = await admin2_pairs.json()
+        assert admin2_payload["pairs"] == []
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_mutate_pairs_or_masks(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        fixture = _seed_rbac_fixture(db_path)
+        await _login_as(client, "viewer", "pw-viewer")
+
+        edit_page = await client.get("/pairs/pair-a/edit")
+        assert edit_page.status == 200
+
+        update_resp = await client.put(
+            "/api/pairs/pair-a",
+            json={
+                "group_a_chat_id": -1001001,
+                "group_b_chat_id": -1001002,
+                "bidirectional": True,
+                "enabled": False,
+                "team_id": fixture["team_a_id"],
+                "filters": {"types_allow": ["text"], "keywords_block": [], "keywords_allow": []},
+            },
+        )
+        assert update_resp.status == 403
+
+        mask_resp = await client.post(
+            "/pairs/pair-a/masks",
+            data={
+                "telegram_user_id": "10101",
+                "direction": "a_to_b",
+                "mode": "alias",
+                "alias": "Masked Name",
+            },
+            allow_redirects=False,
+        )
+        assert mask_resp.status == 403
+
+        backup_resp = await client.post("/api/backup")
+        assert backup_resp.status == 403
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_manager_can_manage_own_team_only(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        fixture = _seed_rbac_fixture(db_path)
+        await _login_as(client, "manager", "pw-manager")
+
+        create_own = await client.post(
+            "/api/pairs",
+            json={
+                "name": "manager-own",
+                "group_a_chat_id": -1003011,
+                "group_b_chat_id": -1003012,
+                "bidirectional": True,
+                "enabled": True,
+                "team_id": fixture["team_a_id"],
+                "filters": {"types_allow": ["text"], "keywords_block": [], "keywords_allow": []},
+            },
+        )
+        assert create_own.status == 201
+
+        create_other = await client.post(
+            "/api/pairs",
+            json={
+                "name": "manager-other",
+                "group_a_chat_id": -1004011,
+                "group_b_chat_id": -1004012,
+                "bidirectional": True,
+                "enabled": True,
+                "team_id": fixture["team_b_id"],
+                "filters": {"types_allow": ["text"], "keywords_block": [], "keywords_allow": []},
+            },
+        )
+        assert create_other.status == 403
+
+        cross_team = await client.get("/pairs/pair-b/edit")
+        assert cross_team.status == 403
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_api_pairs_pagination_defaults_and_page_sizes(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        await _login_as(client, "admin", "secret")
+        store = SQLiteConfigStore(db_path)
+        for idx in range(55):
+            store.create_pair(
+                PairRecord(
+                    id=None,
+                    name=f"pair-{idx:03d}",
+                    group_a_chat_id=-1010000 - idx * 2,
+                    group_b_chat_id=-1010001 - idx * 2,
+                    bidirectional=True,
+                    enabled=True,
+                    filters=PairFilters(types_allow=["text"], keywords_block=[], keywords_allow=[]),
+                )
+            )
+
+        default_page = await client.get("/api/pairs")
+        default_payload = await default_page.json()
+        assert default_payload["pagination"]["page_size"] == 20
+        assert len(default_payload["pairs"]) == 20
+
+        page_50 = await client.get("/api/pairs?page_size=50")
+        payload_50 = await page_50.json()
+        assert payload_50["pagination"]["page_size"] == 50
+        assert len(payload_50["pairs"]) == 50
+
+        page_100 = await client.get("/api/pairs?page_size=100")
+        payload_100 = await page_100.json()
+        assert payload_100["pagination"]["page_size"] == 100
+        assert len(payload_100["pairs"]) == 55
+
+        invalid_size = await client.get("/api/pairs?page_size=999")
+        invalid_payload = await invalid_size.json()
+        assert invalid_payload["pagination"]["page_size"] == 20
+
+        page_2 = await client.get("/api/pairs?page=2&page_size=20")
+        page_2_payload = await page_2.json()
+        assert page_2_payload["pagination"]["page"] == 2
+        assert len(page_2_payload["pairs"]) == 20
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_mask_rules_and_alias_suggestions_respect_permissions(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        fixture = _seed_rbac_fixture(db_path)
+        await _login_as(client, "manager", "pw-manager")
+        store = SQLiteConfigStore(db_path)
+
+        create_alias = await client.post(
+            "/pairs/pair-a/masks",
+            data={
+                "telegram_user_id": "9001",
+                "mode": "alias",
+                "alias": "Customer Alpha",
+            },
+            allow_redirects=False,
+        )
+        assert create_alias.status == 302
+        pair_a_rules = store.list_pair_mask_rules(fixture["pair_a_id"])
+        directions = {rule.direction for rule in pair_a_rules if rule.telegram_user_id == 9001}
+        assert directions == {"a_to_b", "b_to_a"}
+
+        create_anonymous = await client.post(
+            "/pairs/pair-a/masks",
+            data={
+                "telegram_user_id": "9002",
+                "mode": "anonymous",
+                "alias": "",
+            },
+            allow_redirects=False,
+        )
+        assert create_anonymous.status == 302
+        anon_rules = [
+            rule
+            for rule in store.list_pair_mask_rules(fixture["pair_a_id"])
+            if rule.telegram_user_id == 9002
+        ]
+        assert len(anon_rules) == 2
+        assert {rule.direction for rule in anon_rules} == {"a_to_b", "b_to_a"}
+        assert all(rule.mode == "anonymous" for rule in anon_rules)
+        assert all(rule.alias is None for rule in anon_rules)
+
+        missing_alias = await client.post(
+            "/pairs/pair-a/masks",
+            data={
+                "telegram_user_id": "9001",
+                "mode": "alias",
+                "alias": "",
+            },
+        )
+        assert missing_alias.status == 200
+        assert "alias is required" in await missing_alias.text()
+
+        aliases_resp = await client.get("/api/mask-aliases?telegram_user_id=9001")
+        aliases_payload = await aliases_resp.json()
+        assert aliases_payload["aliases"] == ["Customer Alpha"]
+
+        # Regression for real-world payload path reported by user.
+        create_alias_real_payload = await client.post(
+            "/pairs/pair-a/masks",
+            data={
+                "telegram_user_id": "2043771174",
+                "mode": "alias",
+                "alias": "ss",
+            },
+            allow_redirects=False,
+        )
+        assert create_alias_real_payload.status == 302
+        real_rules = [
+            rule
+            for rule in store.list_pair_mask_rules(fixture["pair_a_id"])
+            if rule.telegram_user_id == 2043771174
+        ]
+        assert len(real_rules) == 2
+        assert {rule.direction for rule in real_rules} == {"a_to_b", "b_to_a"}
+        assert all(rule.mode == "alias" and rule.alias == "ss" for rule in real_rules)
+
+        pair_b_rule = store.upsert_pair_mask_rule(
+            PairMaskRule(
+                id=None,
+                pair_id=fixture["pair_b_id"],
+                telegram_user_id=9001,
+                direction="a_to_b",
+                mode="alias",
+                alias="Other Team Name",
+            )
+        )
+        cross_delete = await client.post(
+            f"/pairs/pair-a/masks/{pair_b_rule.id}/delete",
+            allow_redirects=False,
+        )
+        assert cross_delete.status == 404
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_users_and_teams_admin_safety_rules(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        fixture = _seed_rbac_fixture(db_path)
+        admin_id = AuthStore(db_path).get_user_by_username("admin").id
+
+        await _login_as(client, "admin2", "pw-admin2")
+        forbidden_grant = await client.post(
+            "/users",
+            data={
+                "username": "cannot-grant",
+                "password": "pw",
+                "global_role": "super_admin",
+                "is_active": "true",
+            },
+            allow_redirects=False,
+        )
+        assert forbidden_grant.status == 403
+        await client.post("/api/logout")
+
+        await _login_as(client, "admin", "secret")
+        team_rename = await client.post(
+            f"/teams/{fixture['team_a_id']}/edit",
+            data={"name": "Team Alpha"},
+            allow_redirects=False,
+        )
+        assert team_rename.status == 302
+
+        team_delete_blocked = await client.post(
+            f"/teams/{fixture['team_a_id']}/delete",
+            allow_redirects=False,
+        )
+        assert team_delete_blocked.status == 200
+        assert "Cannot delete team with assigned pairs" in await team_delete_blocked.text()
+
+        disable_last_super = await client.post(
+            f"/users/{admin_id}/edit",
+            data={"global_role": "admin", "is_active": "true"},
+        )
+        assert disable_last_super.status == 200
+        assert "cannot remove the last active super_admin" in await disable_last_super.text()
+
+        self_delete = await client.post(f"/users/{admin_id}/delete")
+        assert self_delete.status == 200
+        assert "cannot delete your own account" in await self_delete.text()
+
+        remove_admin2 = await client.post(
+            f"/users/{fixture['admin2_id']}/delete",
+            allow_redirects=False,
+        )
+        assert remove_admin2.status == 302
     finally:
         await client.close()

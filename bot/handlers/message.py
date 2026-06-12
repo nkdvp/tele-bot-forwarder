@@ -59,6 +59,38 @@ def _find_pair_and_direction_from_store(
     return None, None
 
 
+def _resolve_display_name_from_store(
+    *,
+    user_id: int,
+    first_name: str,
+    pair: PairConfig,
+    pair_id: int | None,
+    direction: str,
+    config: Config,
+    store: MaskStore,
+    config_store: SQLiteConfigStore,
+) -> str:
+    if pair_id is not None:
+        rule = config_store.get_pair_mask_rule(
+            pair_id=pair_id,
+            telegram_user_id=user_id,
+            direction=direction,
+        )
+        if rule is not None:
+            if rule.mode == "alias" and rule.alias:
+                return rule.alias
+            return f"User #{store.get_anon_number(pair.name, user_id)}"
+
+    return resolve_display_name(
+        user_id,
+        first_name,
+        pair,
+        direction,
+        config,
+        store,
+    )
+
+
 async def handle_message(
     update: Update,
     context: ContextTypes.DEFAULT_TYPE,
@@ -91,8 +123,13 @@ async def handle_message(
             return
 
     chat_id = update.effective_chat.id
+    pair_id: int | None = None
     if config_store is not None:
-        pair, direction = _find_pair_and_direction_from_store(chat_id, config_store)
+        store_pair, direction = _find_pair_and_direction_from_store(chat_id, config_store)
+        pair = store_pair
+        if pair is not None:
+            matched = config_store.get_pair_by_name(pair.name)
+            pair_id = matched.id if matched is not None else None
     else:
         pair, direction = _find_pair_and_direction(chat_id, config)
     if pair is None:
@@ -109,14 +146,26 @@ async def handle_message(
         return
 
     sender = message.from_user
-    display_name = resolve_display_name(
-        sender.id,
-        sender.first_name or "Unknown",
-        pair,
-        direction,
-        config,
-        store,
-    )
+    if config_store is not None:
+        display_name = _resolve_display_name_from_store(
+            user_id=sender.id,
+            first_name=sender.first_name or "Unknown",
+            pair=pair,
+            pair_id=pair_id,
+            direction=direction,
+            config=config,
+            store=store,
+            config_store=config_store,
+        )
+    else:
+        display_name = resolve_display_name(
+            sender.id,
+            sender.first_name or "Unknown",
+            pair,
+            direction,
+            config,
+            store,
+        )
 
     dest_chat_id = pair.group_b_chat_id if direction == "a_to_b" else pair.group_a_chat_id
     await forward_message(message, display_name, dest_chat_id, context, reply_map, config)

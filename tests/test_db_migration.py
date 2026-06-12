@@ -58,9 +58,13 @@ def test_migrate_files_to_db_imports_pairs_and_reply_links(tmp_path):
     assert report.errors == []
 
     with sqlite3.connect(db_path) as conn:
-        pairs = conn.execute("SELECT name FROM pairs").fetchall()
+        pairs = conn.execute("SELECT name, team_id FROM pairs").fetchall()
+        default_team = conn.execute(
+            "SELECT id FROM teams WHERE name = 'Default'"
+        ).fetchone()
         links = conn.execute("SELECT src_chat_id, src_msg_id FROM reply_links").fetchall()
-    assert pairs == [("pair-a",)]
+    assert default_team is not None
+    assert pairs == [("pair-a", default_team[0])]
     assert len(links) == 2
 
 

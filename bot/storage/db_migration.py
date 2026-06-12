@@ -146,6 +146,9 @@ def migrate_files_to_db(
     initialize_database(db_path)
     with sqlite3.connect(db_path) as conn:
         conn.execute("PRAGMA foreign_keys = ON;")
+        default_team_id = conn.execute(
+            "SELECT id FROM teams WHERE name = 'Default'"
+        ).fetchone()[0]
         conn.execute("DELETE FROM pair_filters")
         conn.execute("DELETE FROM pairs")
         conn.execute("DELETE FROM reply_links")
@@ -154,8 +157,13 @@ def migrate_files_to_db(
             cur = conn.execute(
                 """
                 INSERT INTO pairs (
-                    name, group_a_chat_id, group_b_chat_id, bidirectional, enabled
-                ) VALUES (?, ?, ?, ?, ?)
+                    name,
+                    group_a_chat_id,
+                    group_b_chat_id,
+                    bidirectional,
+                    enabled,
+                    team_id
+                ) VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     pair["name"],
@@ -163,6 +171,7 @@ def migrate_files_to_db(
                     pair["group_b_chat_id"],
                     1 if pair["bidirectional"] else 0,
                     1 if pair["enabled"] else 0,
+                    default_team_id,
                 ),
             )
             pair_id = int(cur.lastrowid)

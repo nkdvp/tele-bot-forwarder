@@ -12,6 +12,9 @@ REQUIRED_TABLES = {
     "reply_links",
     "users",
     "sessions",
+    "teams",
+    "team_members",
+    "pair_mask_rules",
 }
 
 

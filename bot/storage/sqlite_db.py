@@ -53,6 +53,73 @@ _MIGRATIONS: list[tuple[str, str]] = [
         );
         """,
     ),
+    (
+        "002_access_control_and_masking",
+        """
+        ALTER TABLE users ADD COLUMN global_role TEXT NOT NULL DEFAULT 'user';
+        ALTER TABLE pairs ADD COLUMN team_id INTEGER;
+        ALTER TABLE pairs ADD COLUMN created_by_user_id INTEGER;
+
+        CREATE TABLE IF NOT EXISTS teams (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS team_members (
+            team_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role TEXT NOT NULL DEFAULT 'viewer',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (team_id, user_id),
+            FOREIGN KEY(team_id) REFERENCES teams(id) ON DELETE CASCADE,
+            FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
+        );
+
+        CREATE TABLE IF NOT EXISTS pair_mask_rules (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pair_id INTEGER NOT NULL,
+            telegram_user_id INTEGER NOT NULL,
+            direction TEXT NOT NULL,
+            mode TEXT NOT NULL,
+            alias TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(pair_id) REFERENCES pairs(id) ON DELETE CASCADE,
+            UNIQUE(pair_id, telegram_user_id, direction),
+            CHECK(direction IN ('a_to_b', 'b_to_a')),
+            CHECK(mode IN ('alias', 'anonymous')),
+            CHECK(mode = 'anonymous' OR alias IS NOT NULL)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_pairs_team_id ON pairs(team_id);
+        CREATE INDEX IF NOT EXISTS idx_team_members_user_id ON team_members(user_id);
+        CREATE INDEX IF NOT EXISTS idx_pair_mask_rules_pair_id ON pair_mask_rules(pair_id);
+        CREATE INDEX IF NOT EXISTS idx_pair_mask_rules_telegram_user_id
+            ON pair_mask_rules(telegram_user_id);
+
+        INSERT INTO teams (name)
+        SELECT 'Default'
+        WHERE NOT EXISTS (SELECT 1 FROM teams WHERE name = 'Default');
+
+        UPDATE pairs
+        SET team_id = (SELECT id FROM teams WHERE name = 'Default')
+        WHERE team_id IS NULL;
+
+        UPDATE users
+        SET global_role = 'super_admin'
+        WHERE id = (SELECT id FROM users ORDER BY id LIMIT 1);
+
+        INSERT OR IGNORE INTO team_members (team_id, user_id, role)
+        SELECT
+            (SELECT id FROM teams WHERE name = 'Default'),
+            id,
+            'owner'
+        FROM users
+        WHERE global_role = 'super_admin';
+        """,
+    ),
 ]
 
 

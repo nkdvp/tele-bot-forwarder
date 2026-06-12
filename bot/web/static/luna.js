@@ -75,6 +75,52 @@ async function togglePairEnabled(name, checkbox) {
   }
 }
 
+// ── Mask alias suggestions ────────────────────────────────────────────────
+
+const telegramUserInput = document.getElementById('telegram_user_id');
+const aliasSuggestions = document.getElementById('alias-suggestions');
+const maskModeInput = document.getElementById('mode');
+const aliasFieldGroup = document.getElementById('alias-field-group');
+const aliasInput = document.getElementById('alias');
+
+function syncMaskAliasVisibility() {
+  if (!maskModeInput || !aliasFieldGroup || !aliasInput) return;
+  const useAlias = maskModeInput.value === 'alias';
+  aliasFieldGroup.style.display = useAlias ? '' : 'none';
+  aliasInput.disabled = !useAlias;
+  aliasInput.required = useAlias;
+  if (!useAlias) {
+    aliasInput.value = '';
+    if (aliasSuggestions) aliasSuggestions.innerHTML = '';
+  }
+}
+
+if (maskModeInput) {
+  syncMaskAliasVisibility();
+  maskModeInput.addEventListener('change', syncMaskAliasVisibility);
+}
+
+if (telegramUserInput && aliasSuggestions) {
+  telegramUserInput.addEventListener('change', async () => {
+    if (maskModeInput && maskModeInput.value !== 'alias') return;
+    const userId = telegramUserInput.value.trim();
+    aliasSuggestions.innerHTML = '';
+    if (!userId) return;
+    try {
+      const res = await fetch(`/api/mask-aliases?telegram_user_id=${encodeURIComponent(userId)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      for (const alias of data.aliases || []) {
+        const option = document.createElement('option');
+        option.value = alias;
+        aliasSuggestions.appendChild(option);
+      }
+    } catch {
+      // Suggestions are optional; keep the form usable if the lookup fails.
+    }
+  });
+}
+
 // ── Backup trigger ─────────────────────────────────────────────────────────
 
 const backupBtn = document.getElementById('backup-btn');

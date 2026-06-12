@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}Teams{% endblock %}
+{% block page_title %}Teams{% endblock %}
+
+{% block content %}
+{% if error %}
+<div class="alert alert-error">{{ error }}</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:24px;max-width:520px">
+  <form method="post" action="/teams">
+    <div class="form-group">
+      <label class="form-label" for="name">Team Name</label>
+      <input class="form-input" id="name" name="name" required />
+    </div>
+    <button class="btn btn-primary" type="submit">Create team</button>
+  </form>
+</div>
+
+<div class="page-header">
+  <form method="get" action="/teams" class="filter-bar">
+    <select class="form-select" name="team_id" onchange="this.form.submit()">
+      {% for team in teams %}
+        <option value="{{ team.id }}" {% if selected_team and selected_team.id == team.id %}selected{% endif %}>
+          {{ team.name }}
+        </option>
+      {% endfor %}
+    </select>
+  </form>
+</div>
+
+{% if selected_team %}
+<div class="section-title">Members: {{ selected_team.name }}</div>
+
+{% if selected_team.id != default_team_id %}
+<div class="card" style="margin-bottom:20px">
+  <form method="post" action="/teams/{{ selected_team.id }}/edit" style="margin-bottom:16px">
+    <div class="form-group">
+      <label class="form-label" for="rename-team">Rename Team</label>
+      <input class="form-input" id="rename-team" name="name" value="{{ selected_team.name }}" required />
+    </div>
+    <button class="btn btn-primary btn-sm" type="submit">Save team name</button>
+  </form>
+
+  <form method="post" action="/teams/{{ selected_team.id }}/delete">
+    <button class="btn btn-danger btn-sm" type="submit" {% if selected_team_has_pairs %}disabled title="Move pairs to another team before deleting"{% endif %}>
+      Delete team
+    </button>
+    {% if selected_team_has_pairs %}
+    <div class="form-hint">Cannot delete team while pairs are assigned.</div>
+    {% endif %}
+  </form>
+</div>
+{% endif %}
+
+<div class="card" style="margin-bottom:20px">
+  <form method="post" action="/teams/{{ selected_team.id }}/members">
+    <div class="inline-grid">
+      <div class="form-group">
+        <label class="form-label" for="user_id">User</label>
+        <select class="form-select" id="user_id" name="user_id">
+          {% for candidate in users %}
+            <option value="{{ candidate.id }}">{{ candidate.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="role">Team Role</label>
+        <select class="form-select" id="role" name="role">
+          <option value="viewer">Viewer</option>
+          <option value="manager">Manager</option>
+          <option value="owner">Owner</option>
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary" type="submit">Add or update member</button>
+  </form>
+</div>
+
+<div class="table-wrapper">
+  <table>
+    <thead>
+      <tr>
+        <th>User</th>
+        <th>Role</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for member in members %}
+      <tr>
+        <td><strong>{{ member.username }}</strong></td>
+        <td>{{ member.role }}</td>
+        <td>
+          <form method="post" action="/teams/{{ selected_team.id }}/members/{{ member.user_id }}/delete" class="inline">
+            <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="3">
+          <div class="empty-state">
+            <p>No members assigned to this team.</p>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+{% endblock %}

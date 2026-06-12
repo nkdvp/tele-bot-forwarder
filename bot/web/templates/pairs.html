@@ -6,10 +6,28 @@
 <div class="page-header">
   <form method="get" action="/pairs" class="filter-bar">
     <input class="search-input" name="q" placeholder="Search by name…" value="{{ q or '' }}" />
+    <input class="form-input" name="chat_id" placeholder="Chat ID" value="{{ chat_id or '' }}" style="width:150px" />
+    <select class="form-select" name="enabled" style="width:130px">
+      <option value="" {% if not enabled %}selected{% endif %}>Any status</option>
+      <option value="true" {% if enabled == "true" %}selected{% endif %}>Enabled</option>
+      <option value="false" {% if enabled == "false" %}selected{% endif %}>Disabled</option>
+    </select>
+    <select class="form-select" name="bidirectional" style="width:150px">
+      <option value="" {% if not bidirectional %}selected{% endif %}>Any direction</option>
+      <option value="true" {% if bidirectional == "true" %}selected{% endif %}>Bidirectional</option>
+      <option value="false" {% if bidirectional == "false" %}selected{% endif %}>One-way</option>
+    </select>
+    <select class="form-select" name="page_size" style="width:110px">
+      {% for option in page_size_options %}
+        <option value="{{ option }}" {% if pagination.page_size == option %}selected{% endif %}>{{ option }} rows</option>
+      {% endfor %}
+    </select>
     <button type="submit" class="btn btn-ghost btn-sm">Search</button>
-    {% if q %}<a href="/pairs" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
+    {% if q or chat_id or enabled or bidirectional %}<a href="/pairs" class="btn btn-ghost btn-sm">Clear</a>{% endif %}
   </form>
+  {% if has_writable_teams %}
   <a href="/pairs/new" class="btn btn-primary">+ New Pair</a>
+  {% endif %}
 </div>
 
 <div class="table-wrapper">
@@ -19,6 +37,7 @@
         <th>Name</th>
         <th>Group A</th>
         <th>Group B</th>
+        <th>Team</th>
         <th>Direction</th>
         <th>Status</th>
         <th>Actions</th>
@@ -30,6 +49,7 @@
         <td><strong>{{ pair.name }}</strong></td>
         <td class="td-muted">{{ pair.group_a_chat_id }}</td>
         <td class="td-muted">{{ pair.group_b_chat_id }}</td>
+        <td>{{ team_names.get(pair.team_id, "Default") }}</td>
         <td>
           {% if pair.bidirectional %}
             <span style="color:var(--accent)">⇄ Bidirectional</span>
@@ -44,21 +64,26 @@
           </span>
         </td>
         <td>
+          {% set can_manage_pair = writable_team_ids is none or pair.team_id in writable_team_ids %}
           <div class="td-actions">
+            {% if can_manage_pair %}
             <label class="toggle" title="Toggle enabled">
               <input type="checkbox" {% if pair.enabled %}checked{% endif %}
                      onchange="togglePairEnabled('{{ pair.name }}', this)" />
               <span class="toggle-track"></span>
             </label>
+            {% endif %}
             <a href="/pairs/{{ pair.name }}/edit" class="btn btn-ghost btn-sm">Edit</a>
+            {% if can_manage_pair %}
             <button class="btn btn-danger btn-sm"
                     onclick="openDeleteModal('{{ pair.name }}')">Delete</button>
+            {% endif %}
           </div>
         </td>
       </tr>
       {% else %}
       <tr>
-        <td colspan="6">
+        <td colspan="7">
           <div class="empty-state">
             <p>No pairs configured yet.</p>
             <a href="/pairs/new" class="btn btn-primary">Create your first pair</a>
@@ -68,6 +93,21 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+<div class="pagination">
+  <div>
+    Showing {{ pairs|length }} of {{ pagination.total }} pairs
+  </div>
+  <div class="pagination-actions">
+    {% if pagination.page > 1 %}
+      <a class="btn btn-ghost btn-sm" href="/pairs?page={{ pagination.page - 1 }}&page_size={{ pagination.page_size }}{% if q %}&q={{ q }}{% endif %}{% if chat_id %}&chat_id={{ chat_id }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}{% if bidirectional %}&bidirectional={{ bidirectional }}{% endif %}">Previous</a>
+    {% endif %}
+    <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.page < pagination.pages %}
+      <a class="btn btn-ghost btn-sm" href="/pairs?page={{ pagination.page + 1 }}&page_size={{ pagination.page_size }}{% if q %}&q={{ q }}{% endif %}{% if chat_id %}&chat_id={{ chat_id }}{% endif %}{% if enabled %}&enabled={{ enabled }}{% endif %}{% if bidirectional %}&bidirectional={{ bidirectional }}{% endif %}">Next</a>
+    {% endif %}
+  </div>
 </div>
 
 <!-- Delete confirmation modal -->
