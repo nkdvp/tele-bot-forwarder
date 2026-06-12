@@ -1,40 +1,40 @@
 {% extends "base.html" %}
-{% block title %}Dashboard{% endblock %}
-{% block page_title %}Dashboard{% endblock %}
+{% block title %}{{ t("dashboard.title") }}{% endblock %}
+{% block page_title %}{{ t("dashboard.title") }}{% endblock %}
 
 {% block content %}
 <div class="stats-grid">
   <div class="stat-card">
     <div class="stat-value">{{ pairs_total }}</div>
-    <div class="stat-label">Total Pairs</div>
+    <div class="stat-label">{{ t("dashboard.total_pairs") }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ pairs_active }}</div>
-    <div class="stat-label">Active Pairs</div>
+    <div class="stat-label">{{ t("dashboard.active_pairs") }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ today }}</div>
-    <div class="stat-label">Messages Today</div>
+    <div class="stat-label">{{ t("dashboard.messages_today") }}</div>
   </div>
   <div class="stat-card">
     <div class="stat-value">{{ week }}</div>
-    <div class="stat-label">Messages This Week</div>
+    <div class="stat-label">{{ t("dashboard.messages_week") }}</div>
   </div>
 </div>
 
-<div class="section-title">System</div>
+<div class="section-title">{{ t("dashboard.system") }}</div>
 <div class="system-grid">
   <div class="system-item">
-    <div class="system-label">Storage</div>
-    <div class="system-value"><span class="badge badge-success">DB Mode</span></div>
+    <div class="system-label">{{ t("dashboard.storage") }}</div>
+    <div class="system-value"><span class="badge badge-success">{{ t("dashboard.db_mode") }}</span></div>
   </div>
   <div class="system-item">
-    <div class="system-label">Last Backup</div>
-    <div class="system-value">{{ last_backup or "Never" }}</div>
+    <div class="system-label">{{ t("dashboard.last_backup") }}</div>
+    <div class="system-value">{{ last_backup or t("dashboard.never") }}</div>
   </div>
   <div class="system-item">
-    <div class="system-label">Status</div>
-    <div class="system-value"><span class="badge badge-success">Running</span></div>
+    <div class="system-label">{{ t("dashboard.status") }}</div>
+    <div class="system-value"><span class="badge badge-success">{{ t("dashboard.running") }}</span></div>
   </div>
 </div>
 {% endblock %}

@@ -1,11 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Backups{% endblock %}
-{% block page_title %}Backups{% endblock %}
+{% block title %}{{ t("backups.title") }}{% endblock %}
+{% block page_title %}{{ t("backups.title") }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
   <div></div>
-  <button id="backup-btn" class="btn btn-primary">Create backup now</button>
+  <button
+    id="backup-btn"
+    class="btn btn-primary"
+    data-label="{{ t('backups.create_now') }}"
+    data-loading-label="{{ t('backups.creating') }}"
+  >{{ t("backups.create_now") }}</button>
 </div>
 
 <div id="backup-message"></div>
@@ -14,9 +19,9 @@
   <table>
     <thead>
       <tr>
-        <th>Filename</th>
-        <th>Size</th>
-        <th>Created</th>
+        <th>{{ t("backups.filename") }}</th>
+        <th>{{ t("backups.size") }}</th>
+        <th>{{ t("backups.created") }}</th>
       </tr>
     </thead>
     <tbody id="backup-table-body">
@@ -30,7 +35,7 @@
       <tr>
         <td colspan="3">
           <div class="empty-state">
-            <p>No backups yet. Use the button above to create your first backup.</p>
+            <p>{{ t("backups.empty") }}</p>
           </div>
         </td>
       </tr>

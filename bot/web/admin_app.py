@@ -5,6 +5,7 @@ from datetime import datetime
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlencode
 
 import aiohttp_jinja2
 import jinja2
@@ -17,6 +18,12 @@ from bot.storage.config_store import PairFilters, PairMaskRule, PairRecord, SQLi
 
 
 SESSION_COOKIE = "admin_session"
+LOCALE_COOKIE = "admin_locale"
+THEME_COOKIE = "admin_theme"
+DEFAULT_LOCALE = "vi"
+DEFAULT_THEME = "dark"
+SUPPORTED_LOCALES = {"vi", "en"}
+SUPPORTED_THEMES = {"dark", "light"}
 DB_PATH_KEY: web.AppKey[str] = web.AppKey("db_path")
 CONFIG_STORE_KEY: web.AppKey[SQLiteConfigStore] = web.AppKey("config_store")
 AUTH_STORE_KEY: web.AppKey[AuthStore] = web.AppKey("auth_store")
@@ -28,11 +35,363 @@ PAGE_SIZE_OPTIONS = [20, 50, 100]
 # Keep one-way capability in code, but disable it in UI/API for now.
 ALLOW_ONE_WAY_PAIRS = False
 
+TRANSLATIONS: dict[str, dict[str, str]] = {
+    "en": {
+        "nav.dashboard": "Dashboard",
+        "nav.pairs": "Pairs",
+        "nav.users": "Users",
+        "nav.teams": "Teams",
+        "nav.backups": "Backups",
+        "topbar.logout": "Logout",
+        "prefs.language": "Language",
+        "prefs.theme": "Theme",
+        "prefs.lang_vi": "Tiếng Việt",
+        "prefs.lang_en": "English",
+        "prefs.theme_dark": "Dark",
+        "prefs.theme_light": "Light",
+        "toast.delete_success": 'Pair "{name}" deleted',
+        "toast.delete_failed": "Delete failed",
+        "toast.request_failed": "Request failed",
+        "toast.update_failed": "Could not update pair",
+        "toast.backup_created": "Backup created: {filename}",
+        "toast.backup_failed": "Backup failed",
+        "common.cancel": "Cancel",
+        "common.delete": "Delete",
+        "common.edit": "Edit",
+        "common.save": "Save",
+        "common.previous": "Previous",
+        "common.next": "Next",
+        "common.page": "Page",
+        "dashboard.title": "Dashboard",
+        "dashboard.total_pairs": "Total Pairs",
+        "dashboard.active_pairs": "Active Pairs",
+        "dashboard.messages_today": "Messages Today",
+        "dashboard.messages_week": "Messages This Week",
+        "dashboard.system": "System",
+        "dashboard.storage": "Storage",
+        "dashboard.db_mode": "DB Mode",
+        "dashboard.last_backup": "Last Backup",
+        "dashboard.never": "Never",
+        "dashboard.status": "Status",
+        "dashboard.running": "Running",
+        "login.title": "Login",
+        "login.subtitle": "Admin Dashboard",
+        "login.username": "Username",
+        "login.password": "Password",
+        "login.submit": "Sign in",
+        "login.invalid_credentials": "Invalid username or password",
+        "pairs.title": "Pairs",
+        "pairs.search_name": "Search by name…",
+        "pairs.chat_id": "Chat ID",
+        "pairs.any_status": "Any status",
+        "pairs.enabled": "Enabled",
+        "pairs.disabled": "Disabled",
+        "pairs.any_direction": "Any direction",
+        "pairs.bidirectional": "Bidirectional",
+        "pairs.one_way": "One-way",
+        "pairs.rows": "rows",
+        "pairs.search_btn": "Search",
+        "pairs.clear": "Clear",
+        "pairs.new": "New Pair",
+        "pairs.name": "Name",
+        "pairs.group_a": "Group A",
+        "pairs.group_b": "Group B",
+        "pairs.team": "Team",
+        "pairs.direction": "Direction",
+        "pairs.status": "Status",
+        "pairs.actions": "Actions",
+        "pairs.empty": "No pairs configured yet.",
+        "pairs.create_first": "Create your first pair",
+        "pairs.showing": "Showing",
+        "pairs.of": "of",
+        "pairs.delete_title": "Delete pair?",
+        "pairs.delete_confirm_prefix": "Are you sure you want to delete",
+        "pairs.delete_confirm_suffix": "This action cannot be undone.",
+        "pair_form.new_title": "New Pair",
+        "pair_form.edit_title": "Edit Pair",
+        "pair_form.name": "Pair Name",
+        "pair_form.name_placeholder": "e.g. customer-internal",
+        "pair_form.name_hint": "Name cannot be changed after creation.",
+        "pair_form.team": "Team",
+        "pair_form.group_a": "Group A Chat ID",
+        "pair_form.group_b": "Group B Chat ID",
+        "pair_form.direction": "Direction",
+        "pair_form.direction_hint": "Bidirectional is required by current policy.",
+        "pair_form.enabled": "Enabled",
+        "pair_form.enabled_hint": "Active forwarding",
+        "pair_form.allowed_types": "Allowed Message Types",
+        "pair_form.keywords_block": "Keywords - Block List",
+        "pair_form.keywords_block_placeholder": "spam, ads, promo",
+        "pair_form.keywords_block_hint": "Comma-separated. Messages containing these words are blocked.",
+        "pair_form.keywords_allow": "Keywords - Allow List",
+        "pair_form.keywords_allow_placeholder": "Leave empty to allow all",
+        "pair_form.keywords_allow_hint": "Comma-separated. If non-empty, only messages with these words pass.",
+        "pair_form.save": "Save changes",
+        "pair_form.create": "Create pair",
+        "pair_form.masking_title": "Masking",
+        "pair_form.mask_user_id": "Telegram User ID",
+        "pair_form.mask_output": "Masked Output",
+        "pair_form.mask_anonymous": "Anonymous (User #N)",
+        "pair_form.mask_alias_placeholder": "Alias",
+        "pair_form.mask_empty": "No mask rules configured for this pair.",
+        "pair_form.mask_mode": "Mode",
+        "pair_form.mask_mode_alias": "Alias",
+        "pair_form.mask_mode_anon": "Anonymous",
+        "pair_form.mask_alias_label": "Alias",
+        "pair_form.mask_hint_bidirectional": "Mask rules are applied in both directions by default.",
+        "pair_form.mask_save": "Save mask",
+        "backups.title": "Backups",
+        "backups.create_now": "Create backup now",
+        "backups.creating": "Creating…",
+        "backups.filename": "Filename",
+        "backups.size": "Size",
+        "backups.created": "Created",
+        "backups.empty": "No backups yet. Use the button above to create your first backup.",
+        "users.title": "Users",
+        "users.username": "Username",
+        "users.password": "Password",
+        "users.role": "Role",
+        "users.role_user": "User",
+        "users.role_admin": "Admin",
+        "users.role_super_admin": "Super admin",
+        "users.active": "Active",
+        "users.create": "Create user",
+        "users.status": "Status",
+        "users.reset_password": "Reset Password",
+        "users.actions": "Actions",
+        "teams.title": "Teams",
+        "teams.team_name": "Team Name",
+        "teams.create": "Create team",
+        "teams.members": "Members",
+        "teams.rename": "Rename Team",
+        "teams.delete_team": "Delete team",
+        "teams.delete_blocked": "Cannot delete team while pairs are assigned.",
+        "teams.team_role": "Team Role",
+        "teams.role_viewer": "Viewer",
+        "teams.role_manager": "Manager",
+        "teams.role_owner": "Owner",
+        "teams.add_or_update_member": "Add or update member",
+        "teams.remove": "Remove",
+        "teams.empty_members": "No members assigned to this team.",
+    },
+    "vi": {
+        "nav.dashboard": "Tổng quan",
+        "nav.pairs": "Cặp nhóm",
+        "nav.users": "Người dùng",
+        "nav.teams": "Nhóm",
+        "nav.backups": "Sao lưu",
+        "topbar.logout": "Đăng xuất",
+        "prefs.language": "Ngôn ngữ",
+        "prefs.theme": "Giao diện",
+        "prefs.lang_vi": "Tiếng Việt",
+        "prefs.lang_en": "English",
+        "prefs.theme_dark": "Tối",
+        "prefs.theme_light": "Sáng",
+        "toast.delete_success": 'Đã xóa cặp "{name}"',
+        "toast.delete_failed": "Xóa thất bại",
+        "toast.request_failed": "Yêu cầu thất bại",
+        "toast.update_failed": "Không thể cập nhật cặp",
+        "toast.backup_created": "Đã tạo bản sao lưu: {filename}",
+        "toast.backup_failed": "Sao lưu thất bại",
+        "common.cancel": "Hủy",
+        "common.delete": "Xóa",
+        "common.edit": "Sửa",
+        "common.save": "Lưu",
+        "common.previous": "Trước",
+        "common.next": "Tiếp",
+        "common.page": "Trang",
+        "dashboard.title": "Tổng quan",
+        "dashboard.total_pairs": "Tổng số cặp",
+        "dashboard.active_pairs": "Cặp đang hoạt động",
+        "dashboard.messages_today": "Tin nhắn hôm nay",
+        "dashboard.messages_week": "Tin nhắn tuần này",
+        "dashboard.system": "Hệ thống",
+        "dashboard.storage": "Lưu trữ",
+        "dashboard.db_mode": "Chế độ DB",
+        "dashboard.last_backup": "Lần sao lưu gần nhất",
+        "dashboard.never": "Chưa có",
+        "dashboard.status": "Trạng thái",
+        "dashboard.running": "Đang chạy",
+        "login.title": "Đăng nhập",
+        "login.subtitle": "Trang quản trị",
+        "login.username": "Tên đăng nhập",
+        "login.password": "Mật khẩu",
+        "login.submit": "Đăng nhập",
+        "login.invalid_credentials": "Sai tên đăng nhập hoặc mật khẩu",
+        "pairs.title": "Cặp nhóm",
+        "pairs.search_name": "Tìm theo tên…",
+        "pairs.chat_id": "Chat ID",
+        "pairs.any_status": "Mọi trạng thái",
+        "pairs.enabled": "Bật",
+        "pairs.disabled": "Tắt",
+        "pairs.any_direction": "Mọi hướng",
+        "pairs.bidirectional": "Hai chiều",
+        "pairs.one_way": "Một chiều",
+        "pairs.rows": "dòng",
+        "pairs.search_btn": "Tìm",
+        "pairs.clear": "Xóa lọc",
+        "pairs.new": "Tạo cặp",
+        "pairs.name": "Tên",
+        "pairs.group_a": "Nhóm A",
+        "pairs.group_b": "Nhóm B",
+        "pairs.team": "Nhóm",
+        "pairs.direction": "Hướng",
+        "pairs.status": "Trạng thái",
+        "pairs.actions": "Thao tác",
+        "pairs.empty": "Chưa có cặp nào.",
+        "pairs.create_first": "Tạo cặp đầu tiên",
+        "pairs.showing": "Hiển thị",
+        "pairs.of": "trên",
+        "pairs.delete_title": "Xóa cặp?",
+        "pairs.delete_confirm_prefix": "Bạn có chắc muốn xóa",
+        "pairs.delete_confirm_suffix": "Hành động này không thể hoàn tác.",
+        "pair_form.new_title": "Tạo cặp",
+        "pair_form.edit_title": "Sửa cặp",
+        "pair_form.name": "Tên cặp",
+        "pair_form.name_placeholder": "vd: customer-internal",
+        "pair_form.name_hint": "Tên không thể đổi sau khi tạo.",
+        "pair_form.team": "Nhóm",
+        "pair_form.group_a": "Chat ID nhóm A",
+        "pair_form.group_b": "Chat ID nhóm B",
+        "pair_form.direction": "Hướng",
+        "pair_form.direction_hint": "Theo chính sách hiện tại, luôn là hai chiều.",
+        "pair_form.enabled": "Bật",
+        "pair_form.enabled_hint": "Chuyển tiếp đang hoạt động",
+        "pair_form.allowed_types": "Loại tin nhắn được phép",
+        "pair_form.keywords_block": "Từ khóa - Chặn",
+        "pair_form.keywords_block_placeholder": "spam, quảng cáo",
+        "pair_form.keywords_block_hint": "Phân tách bằng dấu phẩy. Tin chứa các từ này sẽ bị chặn.",
+        "pair_form.keywords_allow": "Từ khóa - Cho phép",
+        "pair_form.keywords_allow_placeholder": "Để trống để cho phép tất cả",
+        "pair_form.keywords_allow_hint": "Phân tách bằng dấu phẩy. Nếu không rỗng, chỉ tin chứa các từ này mới được qua.",
+        "pair_form.save": "Lưu thay đổi",
+        "pair_form.create": "Tạo cặp",
+        "pair_form.masking_title": "Ẩn danh",
+        "pair_form.mask_user_id": "Telegram User ID",
+        "pair_form.mask_output": "Tên hiển thị sau khi ẩn",
+        "pair_form.mask_anonymous": "Ẩn danh (User #N)",
+        "pair_form.mask_alias_placeholder": "Bí danh",
+        "pair_form.mask_empty": "Chưa có cấu hình ẩn danh cho cặp này.",
+        "pair_form.mask_mode": "Chế độ",
+        "pair_form.mask_mode_alias": "Bí danh",
+        "pair_form.mask_mode_anon": "Ẩn danh",
+        "pair_form.mask_alias_label": "Bí danh",
+        "pair_form.mask_hint_bidirectional": "Quy tắc ẩn danh mặc định áp dụng hai chiều.",
+        "pair_form.mask_save": "Lưu ẩn danh",
+        "backups.title": "Sao lưu",
+        "backups.create_now": "Tạo sao lưu ngay",
+        "backups.creating": "Đang tạo…",
+        "backups.filename": "Tên file",
+        "backups.size": "Kích thước",
+        "backups.created": "Thời gian tạo",
+        "backups.empty": "Chưa có bản sao lưu. Dùng nút bên trên để tạo bản sao lưu đầu tiên.",
+        "users.title": "Người dùng",
+        "users.username": "Tên đăng nhập",
+        "users.password": "Mật khẩu",
+        "users.role": "Vai trò",
+        "users.role_user": "Người dùng",
+        "users.role_admin": "Quản trị",
+        "users.role_super_admin": "Siêu quản trị",
+        "users.active": "Kích hoạt",
+        "users.create": "Tạo người dùng",
+        "users.status": "Trạng thái",
+        "users.reset_password": "Đặt lại mật khẩu",
+        "users.actions": "Thao tác",
+        "teams.title": "Nhóm",
+        "teams.team_name": "Tên nhóm",
+        "teams.create": "Tạo nhóm",
+        "teams.members": "Thành viên",
+        "teams.rename": "Đổi tên nhóm",
+        "teams.delete_team": "Xóa nhóm",
+        "teams.delete_blocked": "Không thể xóa nhóm khi còn cặp được gán.",
+        "teams.team_role": "Vai trò trong nhóm",
+        "teams.role_viewer": "Chỉ xem",
+        "teams.role_manager": "Quản lý",
+        "teams.role_owner": "Chủ nhóm",
+        "teams.add_or_update_member": "Thêm hoặc cập nhật thành viên",
+        "teams.remove": "Gỡ",
+        "teams.empty_members": "Chưa có thành viên nào trong nhóm này.",
+    },
+}
+
 
 def _to_bool(raw: str | None, *, default: bool = False) -> bool:
     if raw is None:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _resolve_locale(request: web.Request) -> str:
+    query_locale = request.query.get("lang", "").strip().lower()
+    if query_locale in SUPPORTED_LOCALES:
+        return query_locale
+    cookie_locale = request.cookies.get(LOCALE_COOKIE, "").strip().lower()
+    if cookie_locale in SUPPORTED_LOCALES:
+        return cookie_locale
+    return DEFAULT_LOCALE
+
+
+def _resolve_theme(request: web.Request) -> str:
+    query_theme = request.query.get("theme", "").strip().lower()
+    if query_theme in SUPPORTED_THEMES:
+        return query_theme
+    cookie_theme = request.cookies.get(THEME_COOKIE, "").strip().lower()
+    if cookie_theme in SUPPORTED_THEMES:
+        return cookie_theme
+    return DEFAULT_THEME
+
+
+def _translate(locale: str, key: str) -> str:
+    return (
+        TRANSLATIONS.get(locale, {}).get(
+            key,
+            TRANSLATIONS["en"].get(key, key),
+        )
+    )
+
+
+def _ui_messages(locale: str) -> dict[str, str]:
+    return {
+        "deleteSuccess": _translate(locale, "toast.delete_success"),
+        "deleteFailed": _translate(locale, "toast.delete_failed"),
+        "requestFailed": _translate(locale, "toast.request_failed"),
+        "updateFailed": _translate(locale, "toast.update_failed"),
+        "backupCreated": _translate(locale, "toast.backup_created"),
+        "backupFailed": _translate(locale, "toast.backup_failed"),
+    }
+
+
+def _url_with_query(request: web.Request, **updates: str | None) -> str:
+    query = dict(request.query)
+    for key, value in updates.items():
+        if value is None or value == "":
+            query.pop(key, None)
+        else:
+            query[key] = value
+    if not query:
+        return request.path
+    return f"{request.path}?{urlencode(query)}"
+
+
+def _render_template(name: str, request: web.Request, context: dict[str, Any]) -> web.Response:
+    locale = request["locale"]
+    theme = request["theme"]
+    context = dict(context)
+    context.setdefault("locale", locale)
+    context.setdefault("theme", theme)
+    context.setdefault("t", lambda key: _translate(locale, key))
+    context.setdefault("url_with", lambda **updates: _url_with_query(request, **updates))
+    context.setdefault(
+        "ui_messages_json",
+        json.dumps(_ui_messages(locale), ensure_ascii=False),
+    )
+    return aiohttp_jinja2.render_template(name, request, context)
+
+
+def _set_preference_cookies(request: web.Request, response: web.StreamResponse) -> web.StreamResponse:
+    response.set_cookie(LOCALE_COOKIE, request["locale"], samesite="Lax")
+    response.set_cookie(THEME_COOKIE, request["theme"], samesite="Lax")
+    return response
 
 
 def _json_pair(pair: PairRecord) -> dict[str, Any]:
@@ -161,6 +520,14 @@ def _can_grant_super_admin(request: web.Request) -> bool:
 
 
 @web.middleware
+async def ui_preferences_middleware(request: web.Request, handler):
+    request["locale"] = _resolve_locale(request)
+    request["theme"] = _resolve_theme(request)
+    response = await handler(request)
+    return _set_preference_cookies(request, response)
+
+
+@web.middleware
 async def auth_middleware(request: web.Request, handler):
     public_paths = {"/login", "/api/login"}
     if request.path in public_paths:
@@ -204,7 +571,7 @@ async def dashboard_page(request: web.Request) -> web.Response:
     pairs = store.list_pairs(team_ids=_accessible_team_ids(request))
     backup_dir = request.app[BACKUP_DIR_KEY]
 
-    return aiohttp_jinja2.render_template("dashboard.html", request, {
+    return _render_template("dashboard.html", request, {
         "active_page": "dashboard",
         "user": request["user"],
         "today": sum(v.get("today", 0) for v in raw.values()),
@@ -216,7 +583,7 @@ async def dashboard_page(request: web.Request) -> web.Response:
 
 
 async def login_page(request: web.Request) -> web.Response:
-    return aiohttp_jinja2.render_template("login.html", request, {"error": None})
+    return _render_template("login.html", request, {"error": None})
 
 
 async def post_login(request: web.Request) -> web.StreamResponse:
@@ -227,8 +594,10 @@ async def post_login(request: web.Request) -> web.StreamResponse:
 
     user = auth_store.get_user_by_username(username)
     if user is None or not user.is_active or not verify_password(password, user.password_hash):
-        return aiohttp_jinja2.render_template(
-            "login.html", request, {"error": "Invalid username or password"}
+        return _render_template(
+            "login.html",
+            request,
+            {"error": _translate(request["locale"], "login.invalid_credentials")},
         )
 
     session_id = auth_store.create_session(user.id)
@@ -303,11 +672,31 @@ def _list_backups(backup_dir: str) -> list[dict]:
     return result
 
 
+def _aggregate_pair_masks(mask_rules: list[PairMaskRule]) -> list[dict[str, Any]]:
+    by_user: dict[int, dict[str, Any]] = {}
+    for rule in sorted(mask_rules, key=lambda row: (row.telegram_user_id, row.direction)):
+        entry = by_user.setdefault(
+            rule.telegram_user_id,
+            {
+                "telegram_user_id": rule.telegram_user_id,
+                "mode": rule.mode,
+                "alias": rule.alias,
+                "conflict": False,
+            },
+        )
+        if (
+            entry["mode"] != rule.mode
+            or (entry["alias"] or "") != (rule.alias or "")
+        ):
+            entry["conflict"] = True
+    return list(by_user.values())
+
+
 async def backups_page(request: web.Request) -> web.Response:
     if not _can_manage_admin_area(request):
         raise web.HTTPForbidden(text="backups not allowed")
     backup_dir = request.app[BACKUP_DIR_KEY]
-    return aiohttp_jinja2.render_template("backups.html", request, {
+    return _render_template("backups.html", request, {
         "active_page": "backups",
         "user": request["user"],
         "backups": _list_backups(backup_dir),
@@ -339,7 +728,7 @@ async def pairs_page(request: web.Request) -> web.Response:
         bidirectional=bidirectional,
         team_ids=_accessible_team_ids(request),
     )
-    return aiohttp_jinja2.render_template("pairs.html", request, {
+    return _render_template("pairs.html", request, {
         "active_page": "pairs",
         "user": request["user"],
         "pairs": pair_page.pairs,
@@ -365,12 +754,12 @@ async def pair_create_page(request: web.Request) -> web.Response:
     teams = request.app[ACCESS_STORE_KEY].list_writable_teams(request["user"])
     if not teams:
         raise web.HTTPForbidden(text="no writable teams")
-    return aiohttp_jinja2.render_template("pair_form.html", request, {
+    return _render_template("pair_form.html", request, {
         "active_page": "pairs",
         "user": request["user"],
         "pair": None,
         "teams": teams,
-        "mask_rules": [],
+        "mask_mappings": [],
         "can_manage_pair": True,
         "error": None,
     })
@@ -383,12 +772,13 @@ async def pair_edit_page(request: web.Request) -> web.StreamResponse:
     if pair is None:
         return web.Response(status=404, text="pair not found")
     _assert_pair_visible(request, pair)
-    return aiohttp_jinja2.render_template("pair_form.html", request, {
+    mask_rules = store.list_pair_mask_rules(pair.id) if pair.id is not None else []
+    return _render_template("pair_form.html", request, {
         "active_page": "pairs",
         "user": request["user"],
         "pair": pair,
         "teams": request.app[ACCESS_STORE_KEY].list_writable_teams(request["user"]),
-        "mask_rules": store.list_pair_mask_rules(pair.id) if pair.id is not None else [],
+        "mask_mappings": _aggregate_pair_masks(mask_rules),
         "can_manage_pair": _can_write_team(request, pair.team_id),
         "error": None,
     })
@@ -425,12 +815,12 @@ async def pair_create_submit(request: web.Request) -> web.StreamResponse:
         pair = _pair_from_payload(payload)
         store.create_pair(pair)
     except ValueError as exc:
-        return aiohttp_jinja2.render_template("pair_form.html", request, {
+        return _render_template("pair_form.html", request, {
             "active_page": "pairs",
             "user": request["user"],
             "pair": None,
             "teams": request.app[ACCESS_STORE_KEY].list_writable_teams(request["user"]),
-            "mask_rules": [],
+            "mask_mappings": [],
             "can_manage_pair": True,
             "error": str(exc),
         })
@@ -457,12 +847,13 @@ async def pair_edit_submit(request: web.Request) -> web.StreamResponse:
         updated = _pair_from_payload(payload, pair_id=existing.id)
         store.update_pair(updated)
     except ValueError as exc:
-        return aiohttp_jinja2.render_template("pair_form.html", request, {
+        existing_masks = store.list_pair_mask_rules(existing.id) if existing.id is not None else []
+        return _render_template("pair_form.html", request, {
             "active_page": "pairs",
             "user": request["user"],
             "pair": existing,
             "teams": request.app[ACCESS_STORE_KEY].list_writable_teams(request["user"]),
-            "mask_rules": store.list_pair_mask_rules(existing.id) if existing.id is not None else [],
+            "mask_mappings": _aggregate_pair_masks(existing_masks),
             "can_manage_pair": True,
             "error": str(exc),
         })
@@ -503,12 +894,13 @@ async def pair_mask_create_submit(request: web.Request) -> web.StreamResponse:
                 )
             )
     except (TypeError, ValueError) as exc:
-        return aiohttp_jinja2.render_template("pair_form.html", request, {
+        pair_masks = store.list_pair_mask_rules(pair.id)
+        return _render_template("pair_form.html", request, {
             "active_page": "pairs",
             "user": request["user"],
             "pair": pair,
             "teams": request.app[ACCESS_STORE_KEY].list_writable_teams(request["user"]),
-            "mask_rules": store.list_pair_mask_rules(pair.id),
+            "mask_mappings": _aggregate_pair_masks(pair_masks),
             "can_manage_pair": True,
             "error": str(exc),
         })
@@ -521,12 +913,15 @@ async def pair_mask_delete_submit(request: web.Request) -> web.StreamResponse:
     if pair is None or pair.id is None:
         return web.Response(status=404, text="pair not found")
     _assert_pair_writable(request, pair)
-    deleted = store.delete_pair_mask_rule_for_pair(
-        pair_id=pair.id,
-        rule_id=int(request.match_info["rule_id"]),
-    )
-    if not deleted:
+    telegram_user_id = int(request.match_info["telegram_user_id"])
+    rules = [
+        row for row in store.list_pair_mask_rules(pair.id)
+        if row.telegram_user_id == telegram_user_id
+    ]
+    if not rules:
         return web.Response(status=404, text="mask rule not found")
+    for rule in rules:
+        store.delete_pair_mask_rule_for_pair(pair_id=pair.id, rule_id=rule.id)
     raise web.HTTPFound(f"/pairs/{pair.name}/edit")
 
 
@@ -673,7 +1068,7 @@ async def users_page(request: web.Request) -> web.Response:
 
 def _render_users_page(request: web.Request, *, error: str | None) -> web.Response:
     auth_store = request.app[AUTH_STORE_KEY]
-    return aiohttp_jinja2.render_template("users.html", request, {
+    return _render_template("users.html", request, {
         "active_page": "users",
         "user": request["user"],
         "users": auth_store.list_users(),
@@ -796,7 +1191,7 @@ def _render_teams_page(
         selected_team_has_pairs = bool(
             request.app[CONFIG_STORE_KEY].list_pairs(team_ids=[selected_team.id])
         )
-    return aiohttp_jinja2.render_template("teams.html", request, {
+    return _render_template("teams.html", request, {
         "active_page": "teams",
         "user": request["user"],
         "teams": teams,
@@ -896,7 +1291,7 @@ def create_admin_app(
     backup_retention_days: int = 30,
     stats_path: str = "data/stats.json",
 ) -> web.Application:
-    app = web.Application(middlewares=[auth_middleware])
+    app = web.Application(middlewares=[ui_preferences_middleware, auth_middleware])
     app[DB_PATH_KEY] = db_path
     app[CONFIG_STORE_KEY] = config_store
     app[AUTH_STORE_KEY] = auth_store
@@ -935,7 +1330,7 @@ def create_admin_app(
     app.router.add_post("/pairs/{name}/edit", pair_edit_submit)
     app.router.add_post("/pairs/{name}/delete", pair_delete_submit)
     app.router.add_post("/pairs/{name}/masks", pair_mask_create_submit)
-    app.router.add_post("/pairs/{name}/masks/{rule_id}/delete", pair_mask_delete_submit)
+    app.router.add_post("/pairs/{name}/masks/{telegram_user_id}/delete", pair_mask_delete_submit)
     app.router.add_get("/api/pairs", api_list_pairs)
     app.router.add_post("/api/pairs", api_create_pair)
     app.router.add_put("/api/pairs/{name}", api_update_pair)

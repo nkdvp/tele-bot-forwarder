@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ "Edit" if pair else "New" }} Pair{% endblock %}
-{% block page_title %}{{ "Edit" if pair else "New" }} Pair{% endblock %}
+{% block title %}{{ t("pair_form.edit_title") if pair else t("pair_form.new_title") }}{% endblock %}
+{% block page_title %}{{ t("pair_form.edit_title") if pair else t("pair_form.new_title") }}{% endblock %}
 
 {% block content %}
 {% if error %}
@@ -11,18 +11,18 @@
   <form method="post" action="{{ '/pairs/' + pair.name + '/edit' if pair else '/pairs/new' }}">
 
     <div class="form-group">
-      <label class="form-label" for="name">Pair Name</label>
+      <label class="form-label" for="name">{{ t("pair_form.name") }}</label>
       <input class="form-input" type="text" id="name" name="name"
              value="{{ pair.name if pair else '' }}"
              {% if pair %}readonly{% endif %}
-             placeholder="e.g. customer-internal" required />
+             placeholder="{{ t("pair_form.name_placeholder") }}" required />
       {% if pair %}
-        <div class="form-hint">Name cannot be changed after creation.</div>
+        <div class="form-hint">{{ t("pair_form.name_hint") }}</div>
       {% endif %}
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="team_id">Team</label>
+      <label class="form-label" for="team_id">{{ t("pair_form.team") }}</label>
       <select class="form-select" id="team_id" name="team_id" {% if pair and not can_manage_pair %}disabled{% endif %}>
         {% for team in teams %}
           <option value="{{ team.id }}" {% if pair and pair.team_id == team.id %}selected{% endif %}>{{ team.name }}</option>
@@ -35,13 +35,13 @@
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="form-group">
-        <label class="form-label" for="group_a_chat_id">Group A Chat ID</label>
+        <label class="form-label" for="group_a_chat_id">{{ t("pair_form.group_a") }}</label>
         <input class="form-input" type="number" id="group_a_chat_id" name="group_a_chat_id"
                value="{{ pair.group_a_chat_id if pair else '' }}"
                placeholder="-1001234567890" required {% if pair and not can_manage_pair %}readonly{% endif %} />
       </div>
       <div class="form-group">
-        <label class="form-label" for="group_b_chat_id">Group B Chat ID</label>
+        <label class="form-label" for="group_b_chat_id">{{ t("pair_form.group_b") }}</label>
         <input class="form-input" type="number" id="group_b_chat_id" name="group_b_chat_id"
                value="{{ pair.group_b_chat_id if pair else '' }}"
                placeholder="-1009876543210" required {% if pair and not can_manage_pair %}readonly{% endif %} />
@@ -50,12 +50,12 @@
 
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
       <div class="form-group">
-        <label class="form-label">Direction</label>
-        <div class="form-hint">Bidirectional is required by current policy.</div>
+        <label class="form-label">{{ t("pair_form.direction") }}</label>
+        <div class="form-hint">{{ t("pair_form.direction_hint") }}</div>
         <input type="hidden" name="bidirectional" value="true" />
       </div>
       <div class="form-group">
-        <label class="form-label">Enabled</label>
+        <label class="form-label">{{ t("pair_form.enabled") }}</label>
         <div class="toggle-wrapper">
           <label class="toggle">
             <input type="checkbox" name="enabled" value="true"
@@ -63,13 +63,13 @@
                    {% if pair and not can_manage_pair %}disabled{% endif %} />
             <span class="toggle-track"></span>
           </label>
-          <span style="font-size:13px;color:var(--text-muted)">Active forwarding</span>
+          <span style="font-size:13px;color:var(--text-muted)">{{ t("pair_form.enabled_hint") }}</span>
         </div>
       </div>
     </div>
 
     <div class="form-group">
-      <label class="form-label">Allowed Message Types</label>
+      <label class="form-label">{{ t("pair_form.allowed_types") }}</label>
       <div class="checkbox-group">
         {% set allowed_types = pair.filters.types_allow if pair else ["text","photo","video","sticker","document","voice","animation"] %}
         {% for t in ["text","photo","video","sticker","document","voice","animation"] %}
@@ -84,65 +84,67 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="keywords_block">Keywords — Block List</label>
+      <label class="form-label" for="keywords_block">{{ t("pair_form.keywords_block") }}</label>
       <textarea class="form-textarea" id="keywords_block" name="keywords_block"
-                placeholder="spam, ads, promo" {% if pair and not can_manage_pair %}readonly{% endif %}>{{ pair.filters.keywords_block | join(", ") if pair else "" }}</textarea>
-      <div class="form-hint">Comma-separated. Messages containing these words are blocked.</div>
+                placeholder="{{ t("pair_form.keywords_block_placeholder") }}" {% if pair and not can_manage_pair %}readonly{% endif %}>{{ pair.filters.keywords_block | join(", ") if pair else "" }}</textarea>
+      <div class="form-hint">{{ t("pair_form.keywords_block_hint") }}</div>
     </div>
 
     <div class="form-group">
-      <label class="form-label" for="keywords_allow">Keywords — Allow List</label>
+      <label class="form-label" for="keywords_allow">{{ t("pair_form.keywords_allow") }}</label>
       <textarea class="form-textarea" id="keywords_allow" name="keywords_allow"
-                placeholder="Leave empty to allow all" {% if pair and not can_manage_pair %}readonly{% endif %}>{{ pair.filters.keywords_allow | join(", ") if pair else "" }}</textarea>
-      <div class="form-hint">Comma-separated. If non-empty, only messages with these words pass.</div>
+                placeholder="{{ t("pair_form.keywords_allow_placeholder") }}" {% if pair and not can_manage_pair %}readonly{% endif %}>{{ pair.filters.keywords_allow | join(", ") if pair else "" }}</textarea>
+      <div class="form-hint">{{ t("pair_form.keywords_allow_hint") }}</div>
     </div>
 
     <div style="display:flex;gap:12px;margin-top:8px">
       {% if not pair or can_manage_pair %}
         <button type="submit" class="btn btn-primary">
-          {{ "Save changes" if pair else "Create pair" }}
+          {{ t("pair_form.save") if pair else t("pair_form.create") }}
         </button>
       {% endif %}
-      <a href="/pairs" class="btn btn-ghost">Cancel</a>
+      <a href="/pairs" class="btn btn-ghost">{{ t("common.cancel") }}</a>
     </div>
 
   </form>
 </div>
 
 {% if pair %}
-<div class="section-title" style="margin-top:32px">Masking</div>
+<div class="section-title" style="margin-top:32px">{{ t("pair_form.masking_title") }}</div>
 
 <div class="table-wrapper" style="margin-bottom:20px">
   <table>
     <thead>
       <tr>
-        <th>Telegram User ID</th>
-        <th>Direction</th>
-        <th>Mode</th>
-        <th>Alias</th>
-        {% if can_manage_pair %}<th>Actions</th>{% endif %}
+        <th>{{ t("pair_form.mask_user_id") }}</th>
+        <th>{{ t("pair_form.mask_output") }}</th>
+        {% if can_manage_pair %}<th>{{ t("pairs.actions") }}</th>{% endif %}
       </tr>
     </thead>
     <tbody>
-      {% for rule in mask_rules %}
+      {% for mapping in mask_mappings %}
       <tr>
-        <td class="td-muted">{{ rule.telegram_user_id }}</td>
-        <td>{{ "A to B" if rule.direction == "a_to_b" else "B to A" }}</td>
-        <td>{{ "Anonymous" if rule.mode == "anonymous" else "Alias" }}</td>
-        <td>{{ rule.alias or "User #N" }}</td>
+        <td class="td-muted">{{ mapping.telegram_user_id }}</td>
+        <td>
+          {% if mapping.mode == "anonymous" %}
+            {{ t("pair_form.mask_anonymous") }}
+          {% else %}
+            {{ mapping.alias or t("pair_form.mask_alias_placeholder") }}
+          {% endif %}
+        </td>
         {% if can_manage_pair %}
         <td>
-          <form method="post" action="/pairs/{{ pair.name }}/masks/{{ rule.id }}/delete" class="inline">
-            <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+          <form method="post" action="/pairs/{{ pair.name }}/masks/{{ mapping.telegram_user_id }}/delete" class="inline">
+            <button class="btn btn-danger btn-sm" type="submit">{{ t("common.delete") }}</button>
           </form>
         </td>
         {% endif %}
       </tr>
       {% else %}
       <tr>
-        <td colspan="{{ 5 if can_manage_pair else 4 }}">
+        <td colspan="{{ 3 if can_manage_pair else 2 }}">
           <div class="empty-state">
-            <p>No mask rules configured for this pair.</p>
+            <p>{{ t("pair_form.mask_empty") }}</p>
           </div>
         </td>
       </tr>
@@ -156,27 +158,27 @@
   <form method="post" action="/pairs/{{ pair.name }}/masks">
     <div class="inline-grid">
       <div class="form-group">
-        <label class="form-label" for="telegram_user_id">Telegram User ID</label>
+        <label class="form-label" for="telegram_user_id">{{ t("pair_form.mask_user_id") }}</label>
         <input class="form-input" type="number" id="telegram_user_id" name="telegram_user_id" required />
       </div>
       <div class="form-group">
-        <label class="form-label" for="mode">Mode</label>
+        <label class="form-label" for="mode">{{ t("pair_form.mask_mode") }}</label>
         <select class="form-select" id="mode" name="mode">
-          <option value="alias" selected>Alias</option>
-          <option value="anonymous">Anonymous</option>
+          <option value="alias" selected>{{ t("pair_form.mask_mode_alias") }}</option>
+          <option value="anonymous">{{ t("pair_form.mask_mode_anon") }}</option>
         </select>
       </div>
       <div class="form-group" id="alias-field-group">
-        <label class="form-label" for="alias">Alias</label>
+        <label class="form-label" for="alias">{{ t("pair_form.mask_alias_label") }}</label>
         <input class="form-input" type="text" id="alias" name="alias" list="alias-suggestions"
-               placeholder="Recommended name" />
+               placeholder="{{ t("pair_form.mask_alias_placeholder") }}" />
         <datalist id="alias-suggestions"></datalist>
       </div>
     </div>
     <div class="form-hint" style="margin-bottom:12px">
-      Mask rules are applied in both directions by default.
+      {{ t("pair_form.mask_hint_bidirectional") }}
     </div>
-    <button type="submit" class="btn btn-primary">Save mask</button>
+    <button type="submit" class="btn btn-primary">{{ t("pair_form.mask_save") }}</button>
   </form>
 </div>
 {% endif %}

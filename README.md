@@ -116,6 +116,15 @@ python -m bot.storage.db_migration \
 
 On first start the bot registers its command menu with Telegram — type `/` in any chat with the bot to see all available commands.
 
+## Web Admin UX Notes
+
+- Default UI language is **Tiếng Việt**. You can switch between Vietnamese and English from the top bar.
+- Theme can be switched between **dark** and **light** in the top bar; preference is remembered per browser.
+- Navigation is role-aware:
+  - `super_admin` / `admin`: can see Backups, Users, Teams.
+  - `user`: these admin-only sections are hidden and access remains blocked server-side.
+- Pair masking in the web UI is shown as one logical mapping per user ("Telegram user -> masked output"), while bidirectional storage is handled internally.
+
 ## Admin Commands
 
 All commands are restricted to user IDs in `admins`. They work in any private or group chat the bot is a member of.

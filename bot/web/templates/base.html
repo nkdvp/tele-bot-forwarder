@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ locale }}" data-theme="{{ theme }}">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -21,7 +21,7 @@
             <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
             <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
           </svg>
-          Dashboard
+          {{ t("nav.dashboard") }}
         </a>
       </li>
       <li>
@@ -30,7 +30,7 @@
             <path d="M17 1l4 4-4 4"/><path d="M3 11V9a4 4 0 014-4h14"/>
             <path d="M7 23l-4-4 4-4"/><path d="M21 13v2a4 4 0 01-4 4H3"/>
           </svg>
-          Pairs
+          {{ t("nav.pairs") }}
         </a>
       </li>
       {% if user.global_role in ["super_admin", "admin"] %}
@@ -42,7 +42,7 @@
             <path d="M22 21v-2a4 4 0 00-3-3.87"/>
             <path d="M16 3.13a4 4 0 010 7.75"/>
           </svg>
-          Users
+          {{ t("nav.users") }}
         </a>
       </li>
       <li>
@@ -51,19 +51,21 @@
             <rect x="3" y="4" width="18" height="16" rx="2"/>
             <path d="M7 8h10M7 12h10M7 16h6"/>
           </svg>
-          Teams
+          {{ t("nav.teams") }}
         </a>
       </li>
       {% endif %}
+      {% if user.global_role in ["super_admin", "admin"] %}
       <li>
         <a href="/backups" class="{% if active_page == 'backups' %}active{% endif %}">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
             <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
           </svg>
-          Backups
+          {{ t("nav.backups") }}
         </a>
       </li>
+      {% endif %}
     </ul>
   </nav>
 
@@ -71,9 +73,17 @@
     <header class="topbar">
       <h1 class="page-title">{% block page_title %}{% endblock %}</h1>
       <div class="topbar-right">
+        <div class="preferences">
+          <span class="pref-label">{{ t("prefs.language") }}:</span>
+          <a href="{{ url_with(lang='vi') }}" class="pref-link {% if locale == 'vi' %}active{% endif %}">{{ t("prefs.lang_vi") }}</a>
+          <a href="{{ url_with(lang='en') }}" class="pref-link {% if locale == 'en' %}active{% endif %}">{{ t("prefs.lang_en") }}</a>
+          <span class="pref-label">{{ t("prefs.theme") }}:</span>
+          <a href="{{ url_with(theme='dark') }}" class="pref-link {% if theme == 'dark' %}active{% endif %}">{{ t("prefs.theme_dark") }}</a>
+          <a href="{{ url_with(theme='light') }}" class="pref-link {% if theme == 'light' %}active{% endif %}">{{ t("prefs.theme_light") }}</a>
+        </div>
         <span class="username">{{ user.username }}</span>
         <form method="post" action="/api/logout" class="inline">
-          <button type="submit" class="btn btn-ghost btn-sm">Logout</button>
+          <button type="submit" class="btn btn-ghost btn-sm">{{ t("topbar.logout") }}</button>
         </form>
       </div>
     </header>
@@ -82,6 +92,9 @@
     </main>
   </div>
 
+  <script>
+    window.LUNA_UI_MESSAGES = {{ ui_messages_json | safe }};
+  </script>
   <script src="/static/luna.js"></script>
 </body>
 </html>

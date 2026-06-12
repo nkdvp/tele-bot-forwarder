@@ -3,6 +3,30 @@
 const deleteModal = document.getElementById('delete-modal');
 const modalPairName = document.getElementById('modal-pair-name');
 const modalConfirmBtn = document.getElementById('modal-confirm');
+const uiMessages = window.LUNA_UI_MESSAGES || {};
+const themeKey = 'luna_admin_theme';
+
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const queryTheme = params.get('theme');
+  if (queryTheme === 'dark' || queryTheme === 'light') {
+    localStorage.setItem(themeKey, queryTheme);
+    document.documentElement.dataset.theme = queryTheme;
+    return;
+  }
+  const storedTheme = localStorage.getItem(themeKey);
+  if (storedTheme === 'dark' || storedTheme === 'light') {
+    document.documentElement.dataset.theme = storedTheme;
+  }
+})();
+
+function tr(key, replacements = {}) {
+  const template = uiMessages[key] || '';
+  return Object.entries(replacements).reduce(
+    (result, [name, value]) => result.replace(`{${name}}`, String(value)),
+    template,
+  );
+}
 
 function openDeleteModal(name) {
   if (!deleteModal) return;
@@ -25,14 +49,14 @@ if (modalConfirmBtn) {
         const row = document.querySelector(`tr[data-pair="${name}"]`);
         if (row) row.remove();
         closeDeleteModal();
-        showToast(`Pair "${name}" deleted`, 'success');
+        showToast(tr('deleteSuccess', { name }) || `Pair "${name}" deleted`, 'success');
       } else {
         closeDeleteModal();
-        showToast('Delete failed', 'error');
+        showToast(tr('deleteFailed') || 'Delete failed', 'error');
       }
     } catch {
       closeDeleteModal();
-      showToast('Request failed', 'error');
+      showToast(tr('requestFailed') || 'Request failed', 'error');
     }
   });
 }
@@ -66,12 +90,14 @@ async function togglePairEnabled(name, checkbox) {
 
     const badge = document.querySelector(`[data-enabled-badge="${name}"]`);
     if (badge) {
-      badge.textContent = checkbox.checked ? 'Enabled' : 'Disabled';
+      const enabledLabel = badge.dataset.labelEnabled || 'Enabled';
+      const disabledLabel = badge.dataset.labelDisabled || 'Disabled';
+      badge.textContent = checkbox.checked ? enabledLabel : disabledLabel;
       badge.className = `badge ${checkbox.checked ? 'badge-success' : 'badge-danger'}`;
     }
   } catch {
     checkbox.checked = originalState;
-    showToast('Could not update pair', 'error');
+    showToast(tr('updateFailed') || 'Could not update pair', 'error');
   }
 }
 
@@ -128,23 +154,23 @@ const backupBtn = document.getElementById('backup-btn');
 if (backupBtn) {
   backupBtn.addEventListener('click', async () => {
     backupBtn.disabled = true;
-    backupBtn.textContent = 'Creating…';
+    backupBtn.textContent = backupBtn.dataset.loadingLabel || 'Creating…';
     try {
       const res = await fetch('/api/backup', { method: 'POST' });
       const data = await res.json();
       if (data.success) {
         const filename = data.backup_path.split('/').pop();
-        showToast(`Backup created: ${filename}`, 'success');
+        showToast(tr('backupCreated', { filename }) || `Backup created: ${filename}`, 'success');
         setTimeout(() => location.reload(), 1500);
       } else {
-        showToast(data.error || 'Backup failed', 'error');
+        showToast(data.error || tr('backupFailed') || 'Backup failed', 'error');
         backupBtn.disabled = false;
-        backupBtn.textContent = 'Create backup now';
+        backupBtn.textContent = backupBtn.dataset.label || 'Create backup now';
       }
     } catch {
-      showToast('Request failed', 'error');
+      showToast(tr('requestFailed') || 'Request failed', 'error');
       backupBtn.disabled = false;
-      backupBtn.textContent = 'Create backup now';
+      backupBtn.textContent = backupBtn.dataset.label || 'Create backup now';
     }
   });
 }

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Teams{% endblock %}
-{% block page_title %}Teams{% endblock %}
+{% block title %}{{ t("teams.title") }}{% endblock %}
+{% block page_title %}{{ t("teams.title") }}{% endblock %}
 
 {% block content %}
 {% if error %}
@@ -10,10 +10,10 @@
 <div class="card" style="margin-bottom:24px;max-width:520px">
   <form method="post" action="/teams">
     <div class="form-group">
-      <label class="form-label" for="name">Team Name</label>
+      <label class="form-label" for="name">{{ t("teams.team_name") }}</label>
       <input class="form-input" id="name" name="name" required />
     </div>
-    <button class="btn btn-primary" type="submit">Create team</button>
+    <button class="btn btn-primary" type="submit">{{ t("teams.create") }}</button>
   </form>
 </div>
 
@@ -30,24 +30,24 @@
 </div>
 
 {% if selected_team %}
-<div class="section-title">Members: {{ selected_team.name }}</div>
+<div class="section-title">{{ t("teams.members") }}: {{ selected_team.name }}</div>
 
 {% if selected_team.id != default_team_id %}
 <div class="card" style="margin-bottom:20px">
   <form method="post" action="/teams/{{ selected_team.id }}/edit" style="margin-bottom:16px">
     <div class="form-group">
-      <label class="form-label" for="rename-team">Rename Team</label>
+      <label class="form-label" for="rename-team">{{ t("teams.rename") }}</label>
       <input class="form-input" id="rename-team" name="name" value="{{ selected_team.name }}" required />
     </div>
-    <button class="btn btn-primary btn-sm" type="submit">Save team name</button>
+    <button class="btn btn-primary btn-sm" type="submit">{{ t("common.save") }}</button>
   </form>
 
   <form method="post" action="/teams/{{ selected_team.id }}/delete">
     <button class="btn btn-danger btn-sm" type="submit" {% if selected_team_has_pairs %}disabled title="Move pairs to another team before deleting"{% endif %}>
-      Delete team
+      {{ t("teams.delete_team") }}
     </button>
     {% if selected_team_has_pairs %}
-    <div class="form-hint">Cannot delete team while pairs are assigned.</div>
+    <div class="form-hint">{{ t("teams.delete_blocked") }}</div>
     {% endif %}
   </form>
 </div>
@@ -57,7 +57,7 @@
   <form method="post" action="/teams/{{ selected_team.id }}/members">
     <div class="inline-grid">
       <div class="form-group">
-        <label class="form-label" for="user_id">User</label>
+        <label class="form-label" for="user_id">{{ t("users.title") }}</label>
         <select class="form-select" id="user_id" name="user_id">
           {% for candidate in users %}
             <option value="{{ candidate.id }}">{{ candidate.username }}</option>
@@ -65,15 +65,15 @@
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label" for="role">Team Role</label>
+        <label class="form-label" for="role">{{ t("teams.team_role") }}</label>
         <select class="form-select" id="role" name="role">
-          <option value="viewer">Viewer</option>
-          <option value="manager">Manager</option>
-          <option value="owner">Owner</option>
+          <option value="viewer">{{ t("teams.role_viewer") }}</option>
+          <option value="manager">{{ t("teams.role_manager") }}</option>
+          <option value="owner">{{ t("teams.role_owner") }}</option>
         </select>
       </div>
     </div>
-    <button class="btn btn-primary" type="submit">Add or update member</button>
+    <button class="btn btn-primary" type="submit">{{ t("teams.add_or_update_member") }}</button>
   </form>
 </div>
 
@@ -81,9 +81,9 @@
   <table>
     <thead>
       <tr>
-        <th>User</th>
-        <th>Role</th>
-        <th>Actions</th>
+        <th>{{ t("users.title") }}</th>
+        <th>{{ t("users.role") }}</th>
+        <th>{{ t("users.actions") }}</th>
       </tr>
     </thead>
     <tbody>
@@ -93,7 +93,7 @@
         <td>{{ member.role }}</td>
         <td>
           <form method="post" action="/teams/{{ selected_team.id }}/members/{{ member.user_id }}/delete" class="inline">
-            <button class="btn btn-danger btn-sm" type="submit">Remove</button>
+            <button class="btn btn-danger btn-sm" type="submit">{{ t("teams.remove") }}</button>
           </form>
         </td>
       </tr>
@@ -101,7 +101,7 @@
       <tr>
         <td colspan="3">
           <div class="empty-state">
-            <p>No members assigned to this team.</p>
+            <p>{{ t("teams.empty_members") }}</p>
           </div>
         </td>
       </tr>

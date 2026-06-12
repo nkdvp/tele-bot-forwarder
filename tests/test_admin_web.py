@@ -249,7 +249,7 @@ async def test_login_page_renders_html(tmp_path):
         assert "text/html" in resp.content_type
         body = await resp.text()
         assert "Luna" in body
-        assert "Sign in" in body
+        assert "Đăng nhập" in body
     finally:
         await client.close()
 
@@ -279,7 +279,7 @@ async def test_post_login_invalid_credentials_shows_error(tmp_path):
         )
         assert resp.status == 200
         body = await resp.text()
-        assert "Invalid" in body
+        assert "Sai tên đăng nhập hoặc mật khẩu" in body
     finally:
         await client.close()
 
@@ -293,8 +293,8 @@ async def test_dashboard_page_renders_html(tmp_path):
         assert resp.status == 200
         assert "text/html" in resp.content_type
         body = await resp.text()
-        assert "Dashboard" in body
-        assert "Total Pairs" in body
+        assert "Tổng quan" in body
+        assert "Tổng số cặp" in body
     finally:
         await client.close()
 
@@ -340,7 +340,7 @@ async def test_pairs_page_renders_pairs(tmp_path):
         assert "text/html" in resp.content_type
         body = await resp.text()
         assert "test-pair" in body
-        assert "Pairs" in body
+        assert "Cặp nhóm" in body
     finally:
         await client.close()
 
@@ -354,9 +354,9 @@ async def test_pair_create_page_renders_form(tmp_path):
         assert resp.status == 200
         assert "text/html" in resp.content_type
         body = await resp.text()
-        assert "New Pair" in body
-        assert "Group A Chat ID" in body
-        assert "Bidirectional is required by current policy." in body
+        assert "Tạo cặp" in body
+        assert "Chat ID nhóm A" in body
+        assert "luôn là hai chiều" in body
     finally:
         await client.close()
 
@@ -457,7 +457,7 @@ async def test_backups_page_renders_html(tmp_path):
         assert resp.status == 200
         assert "text/html" in resp.content_type
         body = await resp.text()
-        assert "Backups" in body
+        assert "Sao lưu" in body
         assert "forwarder-20260610-120000.db" in body
     finally:
         await client.close()
@@ -556,6 +556,30 @@ async def test_rbac_team_scoping_and_super_admin_visibility(tmp_path):
         admin2_pairs = await client.get("/api/pairs")
         admin2_payload = await admin2_pairs.json()
         assert admin2_payload["pairs"] == []
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_sidebar_navigation_visibility_matches_global_role(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        _seed_rbac_fixture(db_path)
+
+        await _login_as(client, "viewer", "pw-viewer")
+        viewer_page = await client.get("/pairs")
+        viewer_body = await viewer_page.text()
+        assert 'href="/backups"' not in viewer_body
+        assert 'href="/users"' not in viewer_body
+        assert 'href="/teams"' not in viewer_body
+        await client.post("/api/logout")
+
+        await _login_as(client, "admin", "secret")
+        admin_page = await client.get("/pairs")
+        admin_body = await admin_page.text()
+        assert 'href="/backups"' in admin_body
+        assert 'href="/users"' in admin_body
+        assert 'href="/teams"' in admin_body
     finally:
         await client.close()
 
@@ -765,21 +789,100 @@ async def test_mask_rules_and_alias_suggestions_respect_permissions(tmp_path):
         assert {rule.direction for rule in real_rules} == {"a_to_b", "b_to_a"}
         assert all(rule.mode == "alias" and rule.alias == "ss" for rule in real_rules)
 
-        pair_b_rule = store.upsert_pair_mask_rule(
+        store.upsert_pair_mask_rule(
             PairMaskRule(
                 id=None,
                 pair_id=fixture["pair_b_id"],
-                telegram_user_id=9001,
+                telegram_user_id=990099,
                 direction="a_to_b",
                 mode="alias",
                 alias="Other Team Name",
             )
         )
         cross_delete = await client.post(
-            f"/pairs/pair-a/masks/{pair_b_rule.id}/delete",
+            "/pairs/pair-a/masks/990099/delete",
             allow_redirects=False,
         )
         assert cross_delete.status == 404
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_language_switch_persists_for_follow_up_pages(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+        vi_page = await client.get("/pairs")
+        vi_body = await vi_page.text()
+        assert "Cặp nhóm" in vi_body
+
+        en_page = await client.get("/pairs?lang=en")
+        en_body = await en_page.text()
+        assert "Pairs" in en_body
+
+        persisted_page = await client.get("/pairs")
+        persisted_body = await persisted_page.text()
+        assert "Pairs" in persisted_body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_theme_switch_persists_for_follow_up_pages(tmp_path):
+    client, _ = await _make_client(tmp_path)
+    try:
+        await _login(client)
+
+        default_page = await client.get("/pairs")
+        default_body = await default_page.text()
+        assert 'data-theme="dark"' in default_body
+
+        light_page = await client.get("/pairs?theme=light")
+        light_body = await light_page.text()
+        assert 'data-theme="light"' in light_body
+
+        persisted_page = await client.get("/pairs")
+        persisted_body = await persisted_page.text()
+        assert 'data-theme="light"' in persisted_body
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_mask_table_renders_single_row_per_user_mapping(tmp_path):
+    client, db_path = await _make_client(tmp_path)
+    try:
+        fixture = _seed_rbac_fixture(db_path)
+        await _login_as(client, "manager", "pw-manager")
+        store = SQLiteConfigStore(db_path)
+
+        create_alias = await client.post(
+            "/pairs/pair-a/masks",
+            data={
+                "telegram_user_id": "8080",
+                "mode": "alias",
+                "alias": "One Row Alias",
+            },
+            allow_redirects=False,
+        )
+        assert create_alias.status == 302
+
+        resp = await client.get("/pairs/pair-a/edit")
+        body = await resp.text()
+        assert body.count('<td class="td-muted">8080</td>') == 1
+        assert "One Row Alias" in body
+
+        delete_resp = await client.post(
+            "/pairs/pair-a/masks/8080/delete",
+            allow_redirects=False,
+        )
+        assert delete_resp.status == 302
+        remaining = [
+            rule for rule in store.list_pair_mask_rules(fixture["pair_a_id"])
+            if rule.telegram_user_id == 8080
+        ]
+        assert remaining == []
     finally:
         await client.close()
 

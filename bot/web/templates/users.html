@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Users{% endblock %}
-{% block page_title %}Users{% endblock %}
+{% block title %}{{ t("users.title") }}{% endblock %}
+{% block page_title %}{{ t("users.title") }}{% endblock %}
 
 {% block content %}
 {% if error %}
@@ -11,25 +11,25 @@
   <form method="post" action="/users">
     <div class="inline-grid">
       <div class="form-group">
-        <label class="form-label" for="username">Username</label>
+        <label class="form-label" for="username">{{ t("users.username") }}</label>
         <input class="form-input" id="username" name="username" required />
       </div>
       <div class="form-group">
-        <label class="form-label" for="password">Password</label>
+        <label class="form-label" for="password">{{ t("users.password") }}</label>
         <input class="form-input" id="password" name="password" type="password" required />
       </div>
       <div class="form-group">
-        <label class="form-label" for="global_role">Global Role</label>
+        <label class="form-label" for="global_role">{{ t("users.role") }}</label>
         <select class="form-select" id="global_role" name="global_role">
-          <option value="user">User</option>
-          <option value="admin">Admin</option>
+          <option value="user">{{ t("users.role_user") }}</option>
+          <option value="admin">{{ t("users.role_admin") }}</option>
           {% if can_grant_super_admin %}
-          <option value="super_admin">Super admin</option>
+          <option value="super_admin">{{ t("users.role_super_admin") }}</option>
           {% endif %}
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">Active</label>
+        <label class="form-label">{{ t("users.active") }}</label>
         <div class="toggle-wrapper">
           <label class="toggle">
             <input type="checkbox" name="is_active" value="true" checked />
@@ -38,7 +38,7 @@
         </div>
       </div>
     </div>
-    <button class="btn btn-primary" type="submit">Create user</button>
+    <button class="btn btn-primary" type="submit">{{ t("users.create") }}</button>
   </form>
 </div>
 
@@ -46,11 +46,11 @@
   <table>
     <thead>
       <tr>
-        <th>Username</th>
-        <th>Role</th>
-        <th>Status</th>
-        <th>Reset Password</th>
-        <th>Actions</th>
+        <th>{{ t("users.username") }}</th>
+        <th>{{ t("users.role") }}</th>
+        <th>{{ t("users.status") }}</th>
+        <th>{{ t("users.reset_password") }}</th>
+        <th>{{ t("users.actions") }}</th>
       </tr>
     </thead>
     <tbody>
@@ -79,12 +79,12 @@
         <td>
             {% set can_manage_row = can_grant_super_admin or row.global_role != "super_admin" %}
             {% if can_manage_row %}
-            <button class="btn btn-primary btn-sm" type="submit">Save</button>
+            <button class="btn btn-primary btn-sm" type="submit">{{ t("common.save") }}</button>
             {% endif %}
           </form>
           {% if can_manage_row and row.id != user.id %}
           <form method="post" action="/users/{{ row.id }}/delete" class="inline">
-            <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+            <button class="btn btn-danger btn-sm" type="submit">{{ t("common.delete") }}</button>
           </form>
           {% endif %}
         </td>
