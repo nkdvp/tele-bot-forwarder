@@ -171,31 +171,38 @@
 </div>
 
 {% if can_manage_pair %}
-<div class="card" style="max-width:900px">
+<div class="card" id="add-mask-card" style="max-width:520px">
   <form method="post" action="/pairs/{{ pair.name }}/masks">
-    <div class="inline-grid">
-      <div class="form-group">
-        <label class="form-label" for="telegram_user_id">{{ t("pair_form.mask_user_id") }}</label>
-        <input class="form-input" type="number" id="telegram_user_id" name="telegram_user_id" required />
-      </div>
-      <div class="form-group">
-        <label class="form-label" for="mode">{{ t("pair_form.mask_mode") }}</label>
-        <select class="form-select" id="mode" name="mode">
-          <option value="alias" selected>{{ t("pair_form.mask_mode_alias") }}</option>
-          <option value="anonymous">{{ t("pair_form.mask_mode_anon") }}</option>
-        </select>
-      </div>
-      <div class="form-group" id="alias-field-group">
-        <label class="form-label" for="alias">{{ t("pair_form.mask_alias_label") }}</label>
-        <input class="form-input" type="text" id="alias" name="alias" list="alias-suggestions"
-               placeholder="{{ t("pair_form.mask_alias_placeholder") }}" />
-        <datalist id="alias-suggestions"></datalist>
+
+    <div class="form-group">
+      <label class="form-label" for="telegram_user_id">{{ t("pair_form.mask_user_id") }}</label>
+      <input class="form-input" type="number" id="telegram_user_id" name="telegram_user_id"
+             placeholder="e.g. 123456789" required />
+      <div class="form-hint">Paste the Telegram user ID. To find it: forward their message to @userinfobot</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">{{ t("pair_form.mask_mode") }}</label>
+      <input type="hidden" id="mode" name="mode" value="alias" />
+      <div class="mode-pills">
+        <button type="button" class="mode-pill active" data-mode="alias">{{ t("pair_form.mask_mode_alias") }}</button>
+        <button type="button" class="mode-pill" data-mode="anonymous">{{ t("pair_form.mask_mode_anon") }}</button>
       </div>
     </div>
-    <div class="form-hint" style="margin-bottom:12px">
+
+    <div class="form-group" id="alias-field-group">
+      <label class="form-label" for="alias">{{ t("pair_form.mask_alias_label") }}</label>
+      <input class="form-input" type="text" id="alias" name="alias" list="alias-suggestions"
+             placeholder="{{ t("pair_form.mask_alias_placeholder") }}" />
+      <datalist id="alias-suggestions"></datalist>
+    </div>
+
+    <div class="form-hint" style="margin-bottom:16px">
       {{ t("pair_form.mask_hint_bidirectional") }}
     </div>
-    <button type="submit" class="btn btn-primary">{{ t("pair_form.mask_save") }}</button>
+
+    <button type="submit" class="btn btn-primary" style="width:100%">{{ t("pair_form.mask_save") }}</button>
+
   </form>
 </div>
 {% endif %}
