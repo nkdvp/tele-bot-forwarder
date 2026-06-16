@@ -124,7 +124,21 @@
     <tbody>
       {% for mapping in mask_mappings %}
       <tr>
-        <td class="td-muted">{{ mapping.telegram_user_id }}</td>
+        <td>
+          <div class="mask-cell">
+            {% if mapping.mode == "anonymous" %}
+              <span class="mask-avatar anon">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                  <line x1="4" y1="4" x2="20" y2="20"/>
+                </svg>
+              </span>
+            {% else %}
+              <span class="mask-avatar">{{ (mapping.alias or "?")[:2].upper() }}</span>
+            {% endif %}
+            <span class="td-muted">{{ mapping.telegram_user_id }}</span>
+          </div>
+        </td>
         <td>
           {% if mapping.mode == "anonymous" %}
             {{ t("pair_form.mask_anonymous") }}
@@ -145,6 +159,9 @@
         <td colspan="{{ 3 if can_manage_pair else 2 }}">
           <div class="empty-state">
             <p>{{ t("pair_form.mask_empty") }}</p>
+            {% if can_manage_pair %}
+            <a href="#add-mask-card" class="btn btn-ghost btn-sm">+ Add first mask</a>
+            {% endif %}
           </div>
         </td>
       </tr>
