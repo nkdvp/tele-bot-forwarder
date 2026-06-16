@@ -160,7 +160,7 @@
           <div class="empty-state">
             <p>{{ t("pair_form.mask_empty") }}</p>
             {% if can_manage_pair %}
-            <a href="#add-mask-card" class="btn btn-ghost btn-sm">+ Add first mask</a>
+            <a href="#add-mask-card" class="btn btn-ghost btn-sm">{{ t("pair_form.mask_add_first") }}</a>
             {% endif %}
           </div>
         </td>
@@ -178,7 +178,7 @@
       <label class="form-label" for="telegram_user_id">{{ t("pair_form.mask_user_id") }}</label>
       <input class="form-input" type="number" id="telegram_user_id" name="telegram_user_id"
              placeholder="e.g. 123456789" required />
-      <div class="form-hint">Paste the Telegram user ID. To find it: forward their message to @userinfobot</div>
+      <div class="form-hint">{{ t("pair_form.mask_user_id_hint") }}</div>
     </div>
 
     <div class="form-group">
