@@ -109,22 +109,28 @@ const maskModeInput = document.getElementById('mode');
 const aliasFieldGroup = document.getElementById('alias-field-group');
 const aliasInput = document.getElementById('alias');
 
-function syncMaskAliasVisibility() {
+function setMaskMode(mode) {
   if (!maskModeInput || !aliasFieldGroup || !aliasInput) return;
-  const useAlias = maskModeInput.value === 'alias';
-  aliasFieldGroup.style.display = useAlias ? '' : 'none';
+  maskModeInput.value = mode;
+  const useAlias = mode === 'alias';
+  // Use hidden attribute so CSS @starting-style transition fires correctly
+  aliasFieldGroup.hidden = !useAlias;
   aliasInput.disabled = !useAlias;
   aliasInput.required = useAlias;
   if (!useAlias) {
     aliasInput.value = '';
     if (aliasSuggestions) aliasSuggestions.innerHTML = '';
   }
+  document.querySelectorAll('.mode-pill').forEach(pill => {
+    pill.classList.toggle('active', pill.dataset.mode === mode);
+  });
 }
 
-if (maskModeInput) {
-  syncMaskAliasVisibility();
-  maskModeInput.addEventListener('change', syncMaskAliasVisibility);
-}
+document.querySelectorAll('.mode-pill').forEach(pill => {
+  pill.addEventListener('click', () => setMaskMode(pill.dataset.mode));
+});
+
+if (maskModeInput) setMaskMode(maskModeInput.value || 'alias');
 
 if (telegramUserInput && aliasSuggestions) {
   telegramUserInput.addEventListener('change', async () => {
