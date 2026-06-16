@@ -3,8 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="color-scheme" content="light dark" />
   <title>{% block title %}Luna{% endblock %} — Luna Admin</title>
   <link rel="stylesheet" href="/static/luna.css" />
+  <script>
+  {
+    const t = localStorage.getItem('luna_admin_theme');
+    if (t === 'dark' || t === 'light') {
+      document.documentElement.dataset.theme = t;
+      document.querySelector('meta[name="color-scheme"]').content = t;
+    }
+  }
+  </script>
 </head>
 <body>
   <nav class="sidebar">
