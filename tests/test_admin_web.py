@@ -870,7 +870,7 @@ async def test_mask_table_renders_single_row_per_user_mapping(tmp_path):
 
         resp = await client.get("/pairs/pair-a/edit")
         body = await resp.text()
-        assert body.count('<td class="td-muted">8080</td>') == 1
+        assert body.count('<span class="td-muted">8080</span>') == 1
         assert "One Row Alias" in body
 
         delete_resp = await client.post(
